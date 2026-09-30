@@ -1707,7 +1707,7 @@ function dejaNotifieAujourdhui(eleveId){
 
 /* Ouvre WhatsApp ou l'application SMS avec le message prêt, puis consigne la relance.
    Retourne true si l'application a été ouverte. */
-function relancerFamille(eleveId, canal, sansConfirmation){
+async function relancerFamille(eleveId, canal, sansConfirmation){
   const e = eleveById(eleveId);
   if(!e) return false;
   const intl = telInternational(e.parentTel);
@@ -1715,7 +1715,7 @@ function relancerFamille(eleveId, canal, sansConfirmation){
     toast("Numéro invalide pour " + (e.parentNom || "ce parent") + " (« " + (e.parentTel || "vide") + " »). Corrigez-le dans la fiche élève.", true);
     return false;
   }
-  if(!sansConfirmation && dejaNotifieAujourdhui(eleveId) && !confirm("Cette famille a déjà été relancée aujourd'hui. Relancer quand même ?")) return false;
+  if(!sansConfirmation && dejaNotifieAujourdhui(eleveId) && !await confirmer("Cette famille a déjà été relancée aujourd'hui. Relancer quand même ?")) return false;
   const msg = messageRelancePlain(e);
   const url = canal === "sms"
     ? "sms:+" + intl + "?&body=" + encodeURIComponent(msg)
@@ -1757,8 +1757,8 @@ function afficherFileRelance(){
       <button class="btn btn-primary" onclick="fileRelanceEnvoyer()">Ouvrir ${libelle}</button>
     </div>`;
 }
-function fileRelanceEnvoyer(){
-  const ok = relancerFamille(fileRelance.ids[fileRelance.i], fileRelance.canal, true);
+async function fileRelanceEnvoyer(){
+  const ok = await relancerFamille(fileRelance.ids[fileRelance.i], fileRelance.canal, true);
   if(ok){ fileRelance.faits++; fileRelance.i++; afficherFileRelance(); }
 }
 
@@ -3091,8 +3091,8 @@ function saveCours(){
   renderEmploi();
 }
 
-function supprimerCours(id){
-  if(!confirm("Retirer ce cours de l'emploi du temps ?")) return;
+async function supprimerCours(id){
+  if(!await confirmer("Retirer ce cours de l'emploi du temps ?")) return;
   DB.coursEmploi = DB.coursEmploi.filter(c=>c.id!==id);
   saveDB();
   renderEmploiGrid();
@@ -3197,8 +3197,8 @@ function saveExamen(){
   renderExamens();
 }
 
-function supprimerExamen(id){
-  if(!confirm("Supprimer cet examen ? Les notes de composition déjà saisies pour cet examen seront également supprimées. Cette action est irréversible.")) return;
+async function supprimerExamen(id){
+  if(!await confirmer("Supprimer cet examen ? Les notes de composition déjà saisies pour cet examen seront également supprimées. Cette action est irréversible.")) return;
   DB.examens = DB.examens.filter(e=>e.id!==id);
   DB.notesComposition = DB.notesComposition.filter(n=>n.examenId!==id);
   saveDB();
@@ -3483,8 +3483,8 @@ function saveCantine(){
   renderCantine();
 }
 
-function retirerCantine(id){
-  if(!confirm("Retirer cet élève de la cantine ?")) return;
+async function retirerCantine(id){
+  if(!await confirmer("Retirer cet élève de la cantine ?")) return;
   DB.cantineAbonnes = DB.cantineAbonnes.filter(a=>a.id!==id);
   saveDB();
   renderCantine();
@@ -3693,8 +3693,8 @@ function saveAnnonce(){
   renderCommunication();
 }
 
-function supprimerAnnonce(id){
-  if(!confirm("Supprimer cette annonce ?")) return;
+async function supprimerAnnonce(id){
+  if(!await confirmer("Supprimer cette annonce ?")) return;
   DB.annonces = DB.annonces.filter(a=>a.id!==id);
   saveDB();
   renderCommunication();
@@ -4182,10 +4182,10 @@ function imprimerBulletinPaie(){
   w.print();
 }
 
-function genererTousBulletins(){
+async function genererTousBulletins(){
   const personnelActif = DB.personnel.filter(p=>p.statut==="actif" && !bulletinDuMois(p.id, paieMois));
   if(personnelActif.length===0){ toast("Tous les membres actifs ont déjà une paie établie pour ce mois.", true); return; }
-  if(!confirm(`Générer un bulletin au salaire de base (sans prime ni avance) pour ${personnelActif.length} employé(s) qui n'ont pas encore de paie ce mois-ci ?`)) return;
+  if(!await confirmer(`Générer un bulletin au salaire de base (sans prime ni avance) pour ${personnelActif.length} employé(s) qui n'ont pas encore de paie ce mois-ci ?`)) return;
   personnelActif.forEach(p=>{
     const ref = prochaineRefBulletin();
     DB.paies.unshift({ id:uid("PAI"), ref, personnelId:p.id, mois:paieMois, base:p.salaireBase, prime:0, avance:0, motif:"—", net:p.salaireBase, date:todayISO() });
@@ -5495,7 +5495,7 @@ function adminMajCompteurs(profil){
   const c = document.getElementById("admNb_" + profil); if(c) c.textContent = nb + " / " + mods.length + " modules";
   const b = document.getElementById("admBar_" + profil); if(b) b.style.width = Math.round(nb*100/mods.length) + "%";
 }
-function adminPreset(profil, val){
+async function adminPreset(profil, val){
   if(!val) return;
   if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
   const d = DB.droits[profil], label = PROFILES[profil].label;
@@ -5516,7 +5516,7 @@ function adminPreset(profil, val){
     ids = DB.droits[src].nav.filter(id=>gerables.includes(id)); msg = "Droits copiés depuis « " + PROFILES[src].label + " »";
     question = "Remplacer les droits de « " + label + " » par ceux de « " + PROFILES[src].label + " » ?";
   } else return;
-  if(!confirm(question)){ renderAdministration(); return; }
+  if(!await confirmer(question)){ renderAdministration(); return; }
   const set = new Set(ids); set.add("dashboard");
   d.nav = NAV_ITEMS.map(i=>i.id).filter(id=>set.has(id));
   d.collections = collectionsPourModules(d.nav);
@@ -5539,11 +5539,11 @@ function adminBasculerModule(profil, module, coche){
   toast("Droits de « " + PROFILES[profil].label + " » mis à jour.");
 }
 
-function adminBasculerActif(profil){
+async function adminBasculerActif(profil){
   if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
   const d = DB.droits[profil];
   const nouveau = !(d.actif !== false);
-  if(!nouveau && !confirm("Désactiver « " + PROFILES[profil].label + " » ? Ses sessions ouvertes seront fermées et il ne pourra plus se connecter.")) return;
+  if(!nouveau && !await confirmer("Désactiver « " + PROFILES[profil].label + " » ? Ses sessions ouvertes seront fermées et il ne pourra plus se connecter.")) return;
   d.actif = nouveau;
   saveDB();
   toast("Profil « " + PROFILES[profil].label + " » " + (nouveau ? "activé." : "désactivé."));
@@ -5600,20 +5600,20 @@ function adminAjouterUtilisateur(){
   toast("Utilisateur « " + prenoms + " " + nom.toUpperCase() + " » créé (" + PROFILES[role].label + ").");
   renderAdministration();
 }
-function adminBasculerUtilisateur(id){
+async function adminBasculerUtilisateur(id){
   if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
   const u = DB.utilisateurs.find(x=>x.id===id); if(!u) return;
   const nouveau = u.actif === false;
-  if(!nouveau && !confirm("Désactiver « " + utilisateurNomComplet(u) + " » ? Il ne pourra plus être choisi à la connexion.")) return;
+  if(!nouveau && !await confirmer("Désactiver « " + utilisateurNomComplet(u) + " » ? Il ne pourra plus être choisi à la connexion.")) return;
   u.actif = nouveau;
   saveDB();
   toast("Utilisateur " + (nouveau ? "activé." : "désactivé."));
   renderAdministration();
 }
-function adminSupprimerUtilisateur(id){
+async function adminSupprimerUtilisateur(id){
   if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
   const u = DB.utilisateurs.find(x=>x.id===id); if(!u) return;
-  if(!confirm("Supprimer définitivement « " + utilisateurNomComplet(u) + " » ? L'historique du journal est conservé.")) return;
+  if(!await confirmer("Supprimer définitivement « " + utilisateurNomComplet(u) + " » ? L'historique du journal est conservé.")) return;
   DB.utilisateurs = DB.utilisateurs.filter(x=>x.id!==id);
   saveDB();
   toast("Utilisateur supprimé.");
@@ -5866,9 +5866,9 @@ function traceExporter(){
   });
   downloadCSV("journal-tracabilite-" + todayISO() + ".csv", toCSV(rows));
 }
-function tracePurger(){
+async function tracePurger(){
   if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
-  const saisie = prompt("Supprimer les entrées de plus de combien de jours ?\n(Pensez à exporter le journal en CSV d'abord.)", "180");
+  const saisie = await saisir("Supprimer les entrées de plus de combien de jours ?\n(Pensez à exporter le journal en CSV d'abord.)", "180");
   const jours = parseInt(saisie, 10);
   if(!jours || jours < 1) return;
   const limite = Date.now() - jours * 86400000;
@@ -5876,7 +5876,7 @@ function tracePurger(){
   const restantes = (DB.journal || []).filter(j => (j.ts||0) >= limite);
   const nb = avant - restantes.length;
   if(nb === 0){ toast("Aucune entrée n'est plus ancienne que " + jours + " jours."); return; }
-  if(!confirm(nb + " entrée(s) seront supprimées définitivement. Continuer ?")) return;
+  if(!await confirmer(nb + " entrée(s) seront supprimées définitivement. Continuer ?")) return;
   DB.journal = restantes;
   traceAjouter("reglage", "journal", "Purge du journal", `${nb} entrée(s) de plus de ${jours} jours supprimées`, nb);
   saveDB();
@@ -6202,9 +6202,9 @@ function ajouterMatiere(cycle){
   renderMatieresParCycle();
 }
 
-function supprimerMatiere(cycle, index){
+async function supprimerMatiere(cycle, index){
   const nom = DB.matieresParCycle[cycle][index];
-  if(!confirm(`Retirer "${nom}" des matières du cycle ${cycle} ? Les notes déjà saisies pour cette matière seront conservées mais ne seront plus modifiables via l'interface.`)) return;
+  if(!await confirmer(`Retirer "${nom}" des matières du cycle ${cycle} ? Les notes déjà saisies pour cette matière seront conservées mais ne seront plus modifiables via l'interface.`)) return;
   DB.matieresParCycle[cycle].splice(index, 1);
   saveDB();
   toast("Matière retirée.");
@@ -6223,10 +6223,11 @@ function restoreBackup(input){
   const file = input.files[0];
   if(!file) return;
   const reader = new FileReader();
-  reader.onload = (e)=>{
+  reader.onload = async (e)=>{
     try{
       const data = JSON.parse(e.target.result);
       if(!data.eleves) throw new Error("format invalide");
+      if(!(await confirmer("Restaurer cette sauvegarde ? Toutes les données actuelles seront remplacées."))){ input.value = ""; return; }
       saveDB(data);
       toast("Sauvegarde restaurée avec succès.");
       navigate(currentPage);
@@ -6236,8 +6237,8 @@ function restoreBackup(input){
   };
   reader.readAsText(file);
 }
-function resetDemoData(){
-  if(!confirm("Réinitialiser toutes les données de démonstration ? Cette action est irréversible.")) return;
+async function resetDemoData(){
+  if(!await confirmer("Réinitialiser toutes les données de démonstration ? Cette action est irréversible.")) return;
   const fresh = genererDonneesInitiales();
   saveDB(fresh);
   toast("Données réinitialisées.");
@@ -6715,13 +6716,15 @@ function saveDB(db){
   DB = db || DB;
   if(!fbApplyingRemote) traceEnregistrerChangements(); // journalise ce qui a changé depuis la dernière sauvegarde
   // Les données scolaires ne sont plus recopiées dans localStorage : Firestore + son cache persistant IndexedDB sont la source de vérité.
-  if(fbApplyingRemote) return; // on vient de recevoir cette donnée de Firestore, pas la peine de la réécrire
-  if(fbModeSecours){ toast("Données non chargées depuis le serveur : enregistrement bloqué pour ne pas écraser la base. Reconnectez-vous.", true); return; }
+  if(fbApplyingRemote) return Promise.resolve(true); // on vient de recevoir cette donnée de Firestore, pas la peine de la réécrire
+  if(fbModeSecours){ toast("Données non chargées depuis le serveur : enregistrement bloqué pour ne pas écraser la base. Reconnectez-vous.", true); return Promise.resolve(false); }
   // setDoc() réussit immédiatement même hors-ligne : Firestore écrit dans son cache local
   // et met la donnée en file d'attente pour l'envoyer au serveur dès la reconnexion.
   // dbVersFirestore() convertit les tableaux en objets indexés par id pour permettre
   // une fusion (merge) au lieu d'un écrasement complet du document (voir plus haut).
-  Promise.resolve(window.__fb.saveDB(dbVersFirestore(DB))).then(ok=>{
+  /* Renvoie une promesse : true si l'écriture est acceptée (ou mise en file hors-ligne), false sinon.
+     Les appelants peuvent l'attendre (await saveDB()) ou l'ignorer comme avant. */
+  return Promise.resolve(window.__fb.saveDB(dbVersFirestore(DB))).then(ok=>{
     if(ok === false){
       fbWriteError = window.__fb.lastWriteError() || "erreur";
       majIndicateurConnexion();
@@ -6732,6 +6735,11 @@ function saveDB(db){
       fbWriteError = null;
       majIndicateurConnexion();
     }
+    return ok !== false;
+  }).catch(err=>{
+    console.error("saveDB :", err);
+    toast("Erreur d'enregistrement : " + ((err && err.code) || err), true);
+    return false;
   });
 }
 
@@ -6880,6 +6888,68 @@ async function pinSubmit(){
 }
 function pinResetFails(profile){ const l = pinLockLoad(); delete l[profile]; pinLockSave(l); }
 
+/* Dialogues asynchrones de l'application (remplacent confirm()/prompt() natifs, bloquants). */
+function __dialogue(titre, message, opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const ov = document.createElement("div");
+    ov.style.cssText = "position:fixed;inset:0;z-index:100000;background:rgba(10,14,30,.72);display:flex;align-items:center;justify-content:center;padding:16px;";
+    ov.innerHTML = `
+      <div role="dialog" aria-modal="true" style="background:#fff;color:#1a1f36;border-radius:14px;max-width:400px;width:100%;padding:20px 18px;box-shadow:0 12px 40px rgba(0,0,0,.35);font-family:inherit">
+        ${titre ? `<div style="font-weight:700;font-size:16px;margin-bottom:8px">${esc(titre)}</div>` : ""}
+        <div style="font-size:14px;line-height:1.55;color:#3a4160;margin-bottom:14px;white-space:pre-line">${esc(message)}</div>
+        ${opts.champ ? `<input id="dlgChamp" type="${opts.type || "text"}" value="${esc(opts.defaut || "")}" inputmode="${opts.inputmode || "text"}" style="width:100%;padding:12px;font-size:16px;border:1.5px solid #d3daea;border-radius:10px;outline:none;margin-bottom:14px">` : ""}
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button type="button" id="dlgNon" style="padding:10px 16px;border-radius:10px;border:1px solid #d3daea;background:#f6f8fc;font-size:14px;cursor:pointer">Annuler</button>
+          <button type="button" id="dlgOui" style="padding:10px 18px;border-radius:10px;border:0;background:${opts.danger === false ? "#4453d8" : "#e0455a"};color:#fff;font-weight:600;font-size:14px;cursor:pointer">${esc(opts.oui || "Confirmer")}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const champ = ov.querySelector("#dlgChamp");
+    const fin = (v)=>{ document.removeEventListener("keydown", clavier, true); ov.remove(); resolve(v); };
+    const valeur = ()=> champ ? champ.value : true;
+    const clavier = (e)=>{ if(e.key === "Escape") fin(champ ? null : false); if(e.key === "Enter" && champ) fin(valeur()); };
+    document.addEventListener("keydown", clavier, true);
+    ov.querySelector("#dlgOui").onclick = ()=> fin(valeur());
+    ov.querySelector("#dlgNon").onclick = ()=> fin(champ ? null : false);
+    setTimeout(()=>{ (champ || ov.querySelector("#dlgNon")).focus(); }, 50);
+  });
+}
+function confirmer(message, opts){ return __dialogue("", message, opts); }
+function saisir(message, defaut, opts){ return __dialogue("", message, Object.assign({ champ:true, defaut, oui:"Valider", danger:false, inputmode:"numeric" }, opts || {})); }
+
+/* Saisie du mot de passe Firebase dans une fenêtre de l'application (champ masqué).
+   Remplace le prompt() natif, non masqué et souvent bloqué dans les PWA installées. */
+function demanderMotDePasse(titre, lignes, erreur){
+  return new Promise(resolve=>{
+    const ov = document.createElement("div");
+    ov.style.cssText = "position:fixed;inset:0;z-index:100000;background:rgba(10,14,30,.72);display:flex;align-items:center;justify-content:center;padding:16px;";
+    ov.innerHTML = `
+      <div role="dialog" aria-modal="true" style="background:#fff;color:#1a1f36;border-radius:14px;max-width:380px;width:100%;padding:20px 18px;box-shadow:0 12px 40px rgba(0,0,0,.35);font-family:inherit">
+        <div style="font-weight:700;font-size:16px;margin-bottom:8px">${esc(titre)}</div>
+        <div style="font-size:13px;line-height:1.55;color:#5c6478;margin-bottom:12px">${lignes.map(esc).join("<br>")}</div>
+        ${erreur ? `<div style="font-size:12.5px;color:#e0455a;margin-bottom:10px">${esc(erreur)}</div>` : ""}
+        <div style="position:relative">
+          <input id="mdpFbInput" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="Mot de passe Firebase"
+                 style="width:100%;padding:12px 44px 12px 12px;font-size:16px;border:1.5px solid #d3daea;border-radius:10px;outline:none">
+          <button type="button" id="mdpFbEye" aria-label="Afficher ou masquer" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:18px;padding:6px;cursor:pointer">👁</button>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+          <button type="button" id="mdpFbNon" style="padding:10px 16px;border-radius:10px;border:1px solid #d3daea;background:#f6f8fc;font-size:14px;cursor:pointer">Annuler</button>
+          <button type="button" id="mdpFbOui" style="padding:10px 18px;border-radius:10px;border:0;background:#4453d8;color:#fff;font-weight:600;font-size:14px;cursor:pointer">Valider</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const inp = ov.querySelector("#mdpFbInput");
+    const fin = (v)=>{ ov.remove(); resolve(v); };
+    ov.querySelector("#mdpFbOui").onclick = ()=> fin(inp.value || null);
+    ov.querySelector("#mdpFbNon").onclick = ()=> fin(null);
+    ov.querySelector("#mdpFbEye").onclick = ()=>{ inp.type = inp.type === "password" ? "text" : "password"; inp.focus(); };
+    inp.addEventListener("keydown", e=>{ if(e.key === "Enter") fin(inp.value || null); if(e.key === "Escape") fin(null); });
+    setTimeout(()=> inp.focus(), 50);
+  });
+}
+
 async function pinLogin(profile){
   pinClearError();
   pinBuf = ""; pinNew = ""; pinMode = "enter";
@@ -6887,8 +6957,22 @@ async function pinLogin(profile){
   let ok = await window.__fb.signInAsRole(profile);
   if(!ok && (window.__fb && window.__fb.authErrorMessage) && window.__fb.authErrorMessage().includes("Mot de passe Firebase requis")){
     const email = window.__fb.emailDuProfil(profile);
-    const password = prompt("Connexion sécurisée Firebase\n\nProfil : " + PROFILES[profile].label + "\nCompte : " + email + "\n\nSaisissez le mot de passe Firebase de ce compte.\nIl n'est pas enregistré dans l'application.");
-    if(password !== null && password !== "") ok = await window.__fb.signInAsRole(profile, password);
+    masquerEcranChargement();
+    let erreur = "";
+    for(let essai = 0; essai < 3 && !ok; essai++){
+      const password = await demanderMotDePasse("Connexion sécurisée Firebase",
+        ["Profil : " + PROFILES[profile].label, "Compte : " + email, "Saisissez le mot de passe Firebase de ce compte. Il n'est pas enregistré dans l'application."], erreur);
+      if(password === null) break;
+      afficherEcranChargement();
+      ok = await window.__fb.signInAsRole(profile, password);
+      if(!ok){
+        masquerEcranChargement();
+        const m = window.__fb.authErrorMessage();
+        if(!/invalid-credential|wrong-password|user-not-found|invalid-login/.test(m)) break;
+        erreur = "Mot de passe incorrect ou compte inexistant.";
+      }
+    }
+    if(!ok) afficherEcranChargement();
   }
   if(!ok){
     masquerEcranChargement();
@@ -6933,7 +7017,7 @@ async function pinForgot(){
   const profile = document.getElementById("loginProfile").value;
   if(!profile){ toast("Choisissez d'abord le profil concerné.", true); return; }
   const email = window.__fb.emailDuProfil(profile);
-  const password = prompt("Réinitialisation sécurisée du PIN\n\nCompte Firebase : " + email + "\n\nSaisissez le mot de passe Firebase de ce compte pour confirmer votre identité.");
+  const password = await demanderMotDePasse("Réinitialisation sécurisée du PIN", ["Compte Firebase : " + email, "Saisissez le mot de passe Firebase de ce compte pour confirmer votre identité."]);
   if(password === null || password === "") return;
   const okAuth = await verifierMotDePasseFirebase(profile, password);
   if(!okAuth){ toast(window.__fb.authErrorMessage(), true); return; }
@@ -6959,9 +7043,9 @@ async function changerMonPin(){
   toast("PIN modifié avec succès.");
 }
 /* Direction : réinitialiser le PIN d'un autre profil (retour à 2027, à changer à la connexion) */
-function reinitialiserPinProfil(profil){
+async function reinitialiserPinProfil(profil){
   if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
-  if(!confirm("Réinitialiser le PIN de « " + PROFILES[profil].label + " » à 2027 ?")) return;
+  if(!await confirmer("Réinitialiser le PIN de « " + PROFILES[profil].label + " » à 2027 ?")) return;
   const store = pinStoreLoad(); delete store[profil]; pinStoreSave(store);
   pinResetFails(profil);
   traceAjouter("reglage", "pin", PROFILES[profil].label, "PIN réinitialisé sur cet appareil");
