@@ -12,7 +12,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="GSPS">
 <meta name="mobile-web-app-capable" content="yes">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="chart.umd.min.js"></script>
+<script>/* Filet de sécurité : si Chart.js n'a pas pu être chargé (1er lancement hors-ligne), les graphiques restent vides au lieu de faire planter l'app. */window.Chart = window.Chart || function(){ return { destroy(){}, update(){}, resize(){} }; };</script>
 <script type="module">
   // ---------- Firebase (Firestore + Auth par rôle + persistance hors-ligne) ----------
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -54,11 +55,12 @@
   let fbDb;
   try{
     fbDb = initializeFirestore(fbApp, {
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      experimentalAutoDetectLongPolling: true
     });
   }catch(err){
     console.error("Persistance hors-ligne indisponible sur ce navigateur, mode mémoire simple :", err);
-    fbDb = initializeFirestore(fbApp, {});
+    fbDb = initializeFirestore(fbApp, { experimentalAutoDetectLongPolling: true });
   }
 
   // Un seul document = une seule école. Changez cet identifiant si vous gérez plusieurs écoles.
@@ -121,6 +123,14 @@
     return "Connexion Firebase impossible" + (c ? " [" + c + "]" : "") + ".";
   }
 
+  /* Vrai si Firebase a déjà une session valide pour le compte de ce profil sur cet appareil. */
+  async function fbSessionActive(profile){
+    const cred = ROLE_CREDENTIALS[profile];
+    if(!cred) return false;
+    try{ if(typeof fbAuth.authStateReady === "function") await fbAuth.authStateReady(); }catch(e){}
+    return !!(fbAuth.currentUser && fbAuth.currentUser.email === cred.email);
+  }
+
   async function fbLoadDB(){
     try{
       // getDoc lit d'abord le cache local si hors-ligne, sinon le serveur (avec mise à jour du cache).
@@ -139,9 +149,9 @@
   async function fbSaveDB(dbObject){
     if(!fbReady){ fbLastWriteError = "non-connecte"; return false; }
     try{
-      // Avec le cache persistant, cette écriture réussit immédiatement même hors-ligne :
-      // elle est appliquée en local puis mise en file d'attente pour envoi au serveur
-      // dès que la connexion revient.
+      // Avec le cache persistant, la modification est appliquée en local tout de suite, mais la promesse
+      // de setDoc ne se résout qu'une fois l'écriture CONFIRMÉE par le serveur (ou se rejette s'il la refuse).
+      // Hors-ligne, elle reste donc en attente jusqu'au retour de la connexion.
       // merge:true : on fusionne au lieu d'écraser tout le document, pour que deux appareils
       // ayant travaillé hors-ligne en parallèle ne s'écrasent pas mutuellement leurs ajouts
       // (voir dbVersFirestore/dbDepuisFirestore côté script principal).
@@ -161,7 +171,7 @@
     // (fromCache: true) d'une donnée confirmée par le serveur.
     fbUnsubscribe = onSnapshot(ecoleRef, { includeMetadataChanges: true }, (snap)=>{
       if(snap.exists()){
-        onRemoteChange(snap.data().db, snap.data().majLe, snap.metadata.fromCache);
+        onRemoteChange(snap.data().db, snap.data().majLe, snap.metadata.fromCache, snap.metadata.hasPendingWrites);
       }
     }, (err)=>{
       console.error("Synchronisation Firestore interrompue :", err);
@@ -170,7 +180,7 @@
   }
 
   // Exposés pour le reste de l'app (script classique ci-dessous)
-  window.__fb = { loadDB: fbLoadDB, saveDB: fbSaveDB, listen: fbListen, deleteSentinel: deleteField, signInAsRole: fbSignInAsRole, authErrorMessage: fbAuthErrorMessage, emailDuProfil: (p)=> (ROLE_CREDENTIALS[p]||{}).email || "", lastWriteError: ()=> fbLastWriteError };
+  window.__fb = { loadDB: fbLoadDB, saveDB: fbSaveDB, listen: fbListen, deleteSentinel: deleteField, signInAsRole: fbSignInAsRole, sessionActive: fbSessionActive, authErrorMessage: fbAuthErrorMessage, emailDuProfil: (p)=> (ROLE_CREDENTIALS[p]||{}).email || "", lastWriteError: ()=> fbLastWriteError };
 </script>
 <script>
 /* qrcode-generator (minified-ish, MIT) - compact vanilla JS QR encoder */
@@ -234,29 +244,11 @@ img, canvas, svg{ max-width:100%; }
 .login-body select:focus{outline:none; border-color:var(--l-gold);}
 .login-hint{margin-top:18px; padding-top:14px; border-top:1px solid var(--l-line); font-size:11px; color:var(--l-ink-mute); line-height:1.6; text-align:center;}
 .login-error{color:#b0384a; font-size:12px; margin-bottom:10px; display:none; text-align:center;}
-.pin-dots{display:flex; justify-content:center; gap:16px; margin:4px 0 20px;}
-.pin-dots span{width:10px; height:10px; border-radius:50%; border:1.5px solid var(--l-navy); background:transparent; transition:background .12s, transform .12s;}
-.pin-dots span.on{background:var(--l-navy); transform:scale(1.2);}
-.pin-dots.shake{animation:pinShake .35s;}
-@keyframes pinShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
-.pin-pad{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:8px;}
-.pin-pad button{
-  padding:15px 0; font-size:19px; font-weight:600; color:var(--l-ink);
-  background:linear-gradient(180deg, #ffffff 0%, #f2ede0 100%);
-  border:1px solid #ddd5b8; border-radius:14px; cursor:pointer;
-  -webkit-tap-highlight-color:transparent; user-select:none;
-  box-shadow:0 3px 0 #cfc6a8, 0 5px 9px rgba(20,20,10,.16), inset 0 1px 0 rgba(255,255,255,.9);
-  transform:translateY(0); transition:transform .08s, box-shadow .08s, background .08s, color .08s;
-}
-.pin-pad button:active{
-  color:#fff; background:linear-gradient(180deg, var(--l-navy) 0%, var(--l-navy-deep) 100%);
-  border-color:var(--l-navy-deep); transform:translateY(3px);
-  box-shadow:0 0 0 #0000, 0 2px 4px rgba(20,20,10,.18), inset 0 1px 3px rgba(0,0,0,.35);
-}
-.pin-pad button.pin-fn{font-size:13px; color:var(--l-ink-dim);}
-.pin-pad button:disabled{opacity:.4; cursor:not-allowed; box-shadow:none; transform:none;}
-.login-sub-info{font-size:12px; color:var(--l-ink-dim); margin:2px 0 14px; line-height:1.5; text-align:center;}
-.pin-forgot{display:inline-block; margin-top:10px; font-size:11.5px; color:var(--l-ink-dim); background:none; border:none; text-decoration:underline; cursor:pointer;}
+.login-pass{position:relative; margin:4px 0 12px;}
+.login-pass input{width:100%; padding:13px 46px 13px 14px; font-size:16px; border:1.5px solid var(--l-navy); border-radius:10px; outline:none; background:#fff; color:var(--l-ink, #1a1f36);}
+.login-pass button{position:absolute; right:6px; top:50%; transform:translateY(-50%); border:0; background:none; font-size:18px; padding:6px; cursor:pointer;}
+.btn-login{width:100%; padding:13px; margin-bottom:10px; border:0; border-radius:10px; background:var(--l-navy); color:#fff; font-size:15px; font-weight:600; cursor:pointer;}
+.btn-login:disabled{opacity:.5; cursor:not-allowed;}
 .btn-install-login{
   width:100%; padding:10px; margin-top:14px; background:transparent; border:1px solid var(--l-navy);
   border-radius:6px; color:var(--l-navy); font-weight:700; font-size:12.5px; cursor:pointer;
@@ -584,8 +576,8 @@ select.filter{padding:10px 12px; background:var(--bg2); border:1px solid var(--b
       <div class="login-motto">Travail · Rigueur · Discipline</div>
     </div>
     <div class="login-body">
-      <div class="login-error" id="loginError">Code PIN incorrect.</div>
-      <select id="loginProfile" onchange="pinReset()">
+      <div class="login-error" id="loginError">Connexion impossible.</div>
+      <select id="loginProfile" onchange="loginProfilChange()">
         <option value="">— Choisir un profil —</option>
         <option value="direction">Direction</option>
         <option value="comptabilite">Comptabilité</option>
@@ -593,16 +585,14 @@ select.filter{padding:10px 12px; background:var(--bg2); border:1px solid var(--b
         <option value="enseignant">Enseignant</option>
         <option value="transport">Responsable Transport</option>
       </select>
-      <p class="login-sub-info" id="pinInfo">Choisissez votre profil puis saisissez votre code PIN.</p>
-      <div class="pin-dots" id="pinDots"><span></span><span></span><span></span><span></span></div>
-      <div class="pin-pad" id="pinPad">
-        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
-        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
-        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
-        <button type="button" class="pin-fn" data-k="clear">Effacer</button><button type="button" data-k="0">0</button><button type="button" class="pin-fn" data-k="back">⌫</button>
+      <p class="login-sub-info" id="loginInfo">Choisissez votre profil puis saisissez son mot de passe.</p>
+      <div class="login-pass" id="loginPassWrap">
+        <input id="loginPass" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="Mot de passe">
+        <button type="button" id="loginEye" aria-label="Afficher ou masquer le mot de passe">👁</button>
       </div>
+      <button type="button" class="btn-login" id="loginBtn" onclick="loginSubmit()">Se connecter</button>
       <button class="btn-install-login js-install-btn" id="installBtnLogin" onclick="installApp()">📲 Installer l'application</button>
-      <div class="login-hint">Année scolaire 2026 - 2027<br><span id="pinFirstHint">Première connexion : le PIN initial est <b>2027</b>. Il vous sera demandé de le changer.<br>Une authentification Firebase est requise pour la synchronisation sécurisée.</span><br><button type="button" class="pin-forgot" onclick="pinForgot()">PIN oublié ?</button></div>
+      <div class="login-hint">Année scolaire 2026 - 2027<br><span id="loginHint">Le mot de passe est celui du compte Firebase du profil. Il n'est demandé qu'une seule fois sur chaque appareil.<br>Mot de passe oublié : contactez la Direction.</span></div>
     </div>
   </div>
 </div>
@@ -712,7 +702,12 @@ const COMMUNES = ["Saint Alexis","Bankonko","Sanguiana","Kognan","Wondoya","Cent
 
 function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-function uid(prefix){ return prefix + "_" + Math.random().toString(36).slice(2,9); }
+function uid(prefix){
+  let r;
+  try{ r = crypto.randomUUID().replace(/-/g, "").slice(0, 16); }
+  catch(e){ r = Math.random().toString(36).slice(2, 9) + Date.now().toString(36); }
+  return prefix + "_" + r;
+}
 /* Échappe une valeur pour une insertion sûre dans du HTML (texte ou attribut value="...") */
 function esc(v){
   if(v===null || v===undefined) return "";
@@ -1015,7 +1010,7 @@ function renderDashboard(){
           <thead><tr><th>Reçu</th><th>Élève</th><th>Type</th><th>Montant</th><th>Mode</th></tr></thead>
           <tbody>${DB.paiements.slice(0,7).map(p=>{
             const e = eleveById(p.eleveId);
-            return `<tr><td>${p.ref}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${p.type}</td><td>${fmtGNF(p.montant)}</td><td><span class="badge ${p.mode==='Orange Money'?'orange':'green'}">${p.mode}</span></td></tr>`;
+            return `<tr><td>${esc(p.ref)}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${esc(p.type)}</td><td>${fmtGNF(p.montant)}</td><td><span class="badge ${p.mode==='Orange Money'?'orange':'green'}">${esc(p.mode)}</span></td></tr>`;
           }).join("")}</tbody>
         </table></div>
       </div>
@@ -1167,7 +1162,7 @@ function renderElevesList(){
       const spBadge = sp==="solde" ? '<span class="badge green">Soldé</span>' : sp==="partiel" ? '<span class="badge orange">Partiel</span>' : '<span class="badge red">Impayé</span>';
       const statBadge = e.statut==="actif" ? '<span class="badge blue">Actif</span>' : e.statut==="transféré" ? '<span class="badge grey">Transféré</span>' : '<span class="badge red">Abandon</span>';
       return `<tr>
-        <td>${e.matricule}</td>
+        <td>${esc(e.matricule)}</td>
         <td>${eleveNomComplet(e)}</td>
         <td>${niveauNom(e.niveauId)}</td>
         <td>${esc(e.parentNom)}<br><span style="color:var(--text-mute);font-size:11px">${esc(e.parentTel)}</span></td>
@@ -1202,7 +1197,7 @@ function openEleveDetail(id){
           </div>
           <div>
             <div style="font-size:17px;font-weight:700;color:var(--gold-dim)">${eleveNomComplet(e)}</div>
-            <div style="font-size:12px;color:var(--text-mute)">${e.matricule} · ${niveauNom(e.niveauId)} · ${e.cycle}</div>
+            <div style="font-size:12px;color:var(--text-mute)">${esc(e.matricule)} · ${niveauNom(e.niveauId)} · ${esc(e.cycle)}</div>
           </div>
         </div>
         <div style="display:flex; gap:8px;">
@@ -1238,7 +1233,7 @@ function openEleveDetail(id){
       <button class="btn btn-primary btn-sm" style="margin-bottom:14px" onclick="closeModal(); openPaiementForm('${id}')">+ Enregistrer un paiement</button>
       <div class="table-wrap"><table>
         <thead><tr><th>Reçu</th><th>Type</th><th>Date</th><th>Montant</th><th>Mode</th></tr></thead>
-        <tbody>${paiementsEleve.length? paiementsEleve.map(p=>`<tr><td>${p.ref}</td><td>${p.type}</td><td>${p.date}</td><td>${fmtGNF(p.montant)}</td><td>${p.mode}</td></tr>`).join("") : '<tr><td colspan="5" style="text-align:center;color:var(--text-mute)">Aucun paiement enregistré</td></tr>'}</tbody>
+        <tbody>${paiementsEleve.length? paiementsEleve.map(p=>`<tr><td>${esc(p.ref)}</td><td>${esc(p.type)}</td><td>${esc(p.date)}</td><td>${fmtGNF(p.montant)}</td><td>${esc(p.mode)}</td></tr>`).join("") : '<tr><td colspan="5" style="text-align:center;color:var(--text-mute)">Aucun paiement enregistré</td></tr>'}</tbody>
       </table></div>
     </div>
   `, "Fiche élève");
@@ -1253,7 +1248,7 @@ function switchEleveTab(btn, tab){
 
 function openEleveForm(id){
   const e = id ? eleveById(id) : null;
-  const niveauOptions = NIVEAUX.map(n=>`<option value="${n.id}" ${e&&e.niveauId===n.id?"selected":""}>${n.nom} (${n.cycle})</option>`).join("");
+  const niveauOptions = NIVEAUX.map(n=>`<option value="${n.id}" ${e&&e.niveauId===n.id?"selected":""}>${n.nom} (${esc(n.cycle)})</option>`).join("");
   const photoHtml = e && e.photo
     ? `<img src="${e.photo}" alt="Photo" style="width:100%;height:100%;object-fit:cover;display:block;">`
     : `<svg viewBox="0 0 24 24" width="26" height="26" fill="#9aa4c2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5S20 16 20 20"/></svg>`;
@@ -1435,7 +1430,7 @@ function renderFinEncaissementsList(){
     <thead><tr><th>Reçu</th><th>Élève</th><th>Type</th><th>Date</th><th>Montant</th><th>Mode</th><th></th></tr></thead>
     <tbody>${list.length===0?`<tr><td colspan="7" style="text-align:center;color:var(--text-mute)">Aucun paiement ne correspond aux critères.</td></tr>`:list.map(p=>{
       const e = eleveById(p.eleveId);
-      return `<tr><td>${p.ref}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${esc(p.type)}</td><td>${p.date}</td><td>${fmtGNF(p.montant)}</td><td><span class="badge ${p.mode==='Orange Money'?'orange':'green'}">${p.mode}</span></td><td><button class="btn btn-sm" onclick="afficherRecu('${p.ref}')">Voir reçu</button></td></tr>`;
+      return `<tr><td>${esc(p.ref)}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${esc(p.type)}</td><td>${esc(p.date)}</td><td>${fmtGNF(p.montant)}</td><td><span class="badge ${p.mode==='Orange Money'?'orange':'green'}">${esc(p.mode)}</span></td><td><button class="btn btn-sm" onclick="afficherRecu('${esc(p.ref)}')">Voir reçu</button></td></tr>`;
     }).join("")}</tbody>
   </table>`;
 }
@@ -1485,7 +1480,7 @@ function renderFinCaisse(c){
         <thead><tr><th>Heure</th><th>Nature</th><th>Détail</th><th>Entrée</th><th>Sortie</th></tr></thead>
         <tbody>
         ${entrees.length===0 && sorties.length===0 ? '<tr><td colspan="5" style="text-align:center;color:var(--text-mute)">Aucun mouvement enregistré aujourd\'hui (données de démonstration limitées à ce jour)</td></tr>' : ''}
-        ${entrees.map(p=>`<tr><td>—</td><td><span class="badge green">Encaissement</span></td><td>${p.ref} — ${p.type}</td><td style="color:var(--green)">${fmtGNF(p.montant)}</td><td>—</td></tr>`).join("")}
+        ${entrees.map(p=>`<tr><td>—</td><td><span class="badge green">Encaissement</span></td><td>${esc(p.ref)} — ${esc(p.type)}</td><td style="color:var(--green)">${fmtGNF(p.montant)}</td><td>—</td></tr>`).join("")}
         ${sorties.map(d=>`<tr><td>—</td><td><span class="badge red">Dépense</span></td><td>${esc(d.libelle)}</td><td>—</td><td style="color:var(--red)">${fmtGNF(d.montant)}</td></tr>`).join("")}
         </tbody>
       </table></div>
@@ -1506,7 +1501,7 @@ function renderFinDepenses(c){
       <div class="panel-head"><h3>Registre des dépenses</h3>${btnImprimer('Registre des dépenses')}</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Date</th><th>Catégorie</th><th>Libellé</th><th>Montant</th></tr></thead>
-        <tbody>${DB.depenses.map(d=>`<tr><td>${d.date}</td><td><span class="badge grey">${esc(d.categorie)}</span></td><td>${esc(d.libelle)}</td><td>${fmtGNF(d.montant)}</td></tr>`).join("")}</tbody>
+        <tbody>${DB.depenses.map(d=>`<tr><td>${esc(d.date)}</td><td><span class="badge grey">${esc(d.categorie)}</span></td><td>${esc(d.libelle)}</td><td>${fmtGNF(d.montant)}</td></tr>`).join("")}</tbody>
       </table></div>
     </div>
   `;
@@ -1547,7 +1542,7 @@ function renderFinBareme(c){
         <tbody>${NIVEAUX.map(n=>{
           const f = fraisNiveau(n.id);
           return `<tr>
-            <td>${n.nom}</td><td>${n.cycle}</td>
+            <td>${n.nom}</td><td>${esc(n.cycle)}</td>
             <td><input type="number" step="1000" min="0" value="${f.montant}" style="width:120px;padding:5px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--text)" onchange="updateFraisNiveau('${n.id}','montant',this.value)"></td>
             <td><input type="number" step="1000" min="0" value="${f.t1}" style="width:110px;padding:5px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--text)" onchange="updateFraisNiveau('${n.id}','t1',this.value)"></td>
             <td><input type="number" step="1000" min="0" value="${f.t2}" style="width:110px;padding:5px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--text)" onchange="updateFraisNiveau('${n.id}','t2',this.value)"></td>
@@ -1675,7 +1670,7 @@ function renderFinNotifications(c){
         <tbody>${DB.notifications.length===0 ? '<tr><td colspan="5" style="text-align:center;color:var(--text-mute)">Aucune relance pour le moment.</td></tr>' : DB.notifications.slice(0,50).map(n=>{
           const e = eleveById(n.eleveId);
           const canal = n.canal === "whatsapp" ? "WhatsApp" : n.canal === "sms" ? "SMS" : "Simulation";
-          return `<tr><td>${n.date}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${canal}</td><td>${esc(n.tel)}</td><td style="white-space:normal;max-width:420px">${n.plain ? esc(n.message) : n.message}</td></tr>`;
+          return `<tr><td>${esc(n.date)}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${canal}</td><td>${esc(n.tel)}</td><td style="white-space:normal;max-width:420px">${n.plain ? esc(n.message) : n.message}</td></tr>`;
         }).join("")}</tbody>
       </table></div>
     </div>
@@ -1823,16 +1818,16 @@ function recuContenuHTML(p, e, niv, solde, copie){
         </div>
         <div style="text-align:right;">
           <div style="font-weight:700; font-size:13px; color:#a8862a;">REÇU DE PAIEMENT</div>
-          <div style="font-size:11px; color:#555;">N° ${p.ref}</div>
-          <div style="font-size:11px; color:#555;">${p.date}</div>
+          <div style="font-size:11px; color:#555;">N° ${esc(p.ref)}</div>
+          <div style="font-size:11px; color:#555;">${esc(p.date)}</div>
         </div>
       </div>
       <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:12px;">
         <tr><td style="padding:4px 0; color:#666; width:40%;">Élève</td><td style="padding:4px 0; font-weight:600;">${e?eleveNomComplet(e):"—"}</td></tr>
         <tr><td style="padding:4px 0; color:#666;">Matricule</td><td style="padding:4px 0;">${e?e.matricule:"—"}</td></tr>
         <tr><td style="padding:4px 0; color:#666;">Classe</td><td style="padding:4px 0;">${niv?niv.nom:"—"}</td></tr>
-        <tr><td style="padding:4px 0; color:#666;">Nature du paiement</td><td style="padding:4px 0;">${p.type}</td></tr>
-        <tr><td style="padding:4px 0; color:#666;">Mode de règlement</td><td style="padding:4px 0;">${p.mode}</td></tr>
+        <tr><td style="padding:4px 0; color:#666;">Nature du paiement</td><td style="padding:4px 0;">${esc(p.type)}</td></tr>
+        <tr><td style="padding:4px 0; color:#666;">Mode de règlement</td><td style="padding:4px 0;">${esc(p.mode)}</td></tr>
       </table>
       <div style="background:#f5f2e8; border:1px solid #e2d8b8; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <span style="font-size:12px; color:#555;">Montant reçu</span>
@@ -2523,8 +2518,8 @@ function afficherBulletin(){
       <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:16px;">
         <tr><td style="padding:4px 0; color:#666; width:40%;">Élève</td><td style="padding:4px 0; font-weight:600;">${eleveNomComplet(e)}</td>
             ${e.photo?`<td rowspan="4" style="width:70px;text-align:right;vertical-align:top;"><img src="${e.photo}" style="width:60px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ddd;"></td>`:''}</tr>
-        <tr><td style="padding:4px 0; color:#666;">Matricule</td><td style="padding:4px 0;">${e.matricule}</td></tr>
-        <tr><td style="padding:4px 0; color:#666;">Classe</td><td style="padding:4px 0;">${niv.nom} (${niv.cycle})</td></tr>
+        <tr><td style="padding:4px 0; color:#666;">Matricule</td><td style="padding:4px 0;">${esc(e.matricule)}</td></tr>
+        <tr><td style="padding:4px 0; color:#666;">Classe</td><td style="padding:4px 0;">${niv.nom} (${esc(niv.cycle)})</td></tr>
         <tr><td style="padding:4px 0; color:#666;">Effectif de la classe</td><td style="padding:4px 0;">${effectif} élève(s)</td></tr>
       </table>
       <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:16px;">
@@ -2533,7 +2528,7 @@ function afficherBulletin(){
           <th style="text-align:center; padding:8px 10px; border:1px solid #e2d8b8; width:110px;">Note /20</th>
         </tr></thead>
         <tbody>${notes.map(n=>`
-          <tr><td style="padding:7px 10px; border:1px solid #eee;">${n.matiere}</td>
+          <tr><td style="padding:7px 10px; border:1px solid #eee;">${esc(n.matiere)}</td>
           <td style="text-align:center; padding:7px 10px; border:1px solid #eee; font-weight:600;">${n.note===null?'—':n.note}</td></tr>
         `).join("")}</tbody>
       </table>
@@ -2650,7 +2645,7 @@ function rafraichirChoixExamenProclamation(){
     proclamationConfig.examenId = "";
     return;
   }
-  sel.innerHTML = examens.map(e=>`<option value="${e.id}">${esc(e.titre)} — ${e.date}</option>`).join("");
+  sel.innerHTML = examens.map(e=>`<option value="${e.id}">${esc(e.titre)} — ${esc(e.date)}</option>`).join("");
   proclamationConfig.examenId = examens[0].id;
 }
 
@@ -2701,7 +2696,7 @@ function afficherProclamation(){
       </div>
 
       <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:16px;">
-        <tr><td style="padding:4px 0; color:#666; width:32%;">Classe</td><td style="padding:4px 0; font-weight:600;">${niv.nom} (${niv.cycle})</td>
+        <tr><td style="padding:4px 0; color:#666; width:32%;">Classe</td><td style="padding:4px 0; font-weight:600;">${niv.nom} (${esc(niv.cycle)})</td>
             <td style="padding:4px 0; color:#666; width:22%;">Effectif</td><td style="padding:4px 0; font-weight:600;">${effectifClasse} élève(s)</td></tr>
         <tr><td style="padding:4px 0; color:#666;">Base du classement</td><td style="padding:4px 0; font-weight:600;" colspan="3">${esc(libelleBase)}</td></tr>
         <tr><td style="padding:4px 0; color:#666;">Date</td><td style="padding:4px 0;">${dateDoc}</td></tr>
@@ -2837,7 +2832,7 @@ function renderLivretListe(){
   );
   tbody.innerHTML = eleves.length ? eleves.map(e=>`
     <tr>
-      <td>${e.matricule}</td>
+      <td>${esc(e.matricule)}</td>
       <td>${eleveNomComplet(e)}</td>
       <td>${niveauNom(e.niveauId)}</td>
       <td><button class="btn btn-sm" onclick="afficherLivret('${e.id}')">📖 Voir le livret</button></td>
@@ -2890,8 +2885,8 @@ function afficherLivret(eleveId, periode){
       <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:16px;">
         <tr><td style="padding:4px 0; color:#666; width:32%;">Élève</td><td style="padding:4px 0; font-weight:600;" colspan="3">${eleveNomComplet(e)}</td>
             ${e.photo?`<td rowspan="3" style="width:70px;text-align:right;vertical-align:top;"><img src="${e.photo}" style="width:60px;height:72px;object-fit:cover;border-radius:6px;border:1px solid #ddd;"></td>`:''}</tr>
-        <tr><td style="padding:4px 0; color:#666;">Matricule</td><td style="padding:4px 0;">${e.matricule}</td>
-            <td style="padding:4px 0; color:#666; width:22%;">Classe</td><td style="padding:4px 0;">${niv.nom} (${niv.cycle})</td></tr>
+        <tr><td style="padding:4px 0; color:#666;">Matricule</td><td style="padding:4px 0;">${esc(e.matricule)}</td>
+            <td style="padding:4px 0; color:#666; width:22%;">Classe</td><td style="padding:4px 0;">${niv.nom} (${esc(niv.cycle)})</td></tr>
         <tr><td style="padding:4px 0; color:#666;">Effectif de la classe</td><td style="padding:4px 0;">${effectif} élève(s)</td>
             <td style="padding:4px 0; color:#666;">Période</td><td style="padding:4px 0;">
               ${periodesDispo.length>1 ? `<select onchange="afficherLivret('${eleveId}', this.value)" style="padding:3px 6px;border:1px solid #ccc;border-radius:4px;">
@@ -2906,7 +2901,7 @@ function afficherLivret(eleveId, periode){
           <th style="text-align:center; padding:8px 10px; border:1px solid #e2d8b8; width:110px;">Moyenne /20</th>
         </tr></thead>
         <tbody>${lignes.map(l=>`
-          <tr><td style="padding:7px 10px; border:1px solid #eee;">${l.matiere}</td>
+          <tr><td style="padding:7px 10px; border:1px solid #eee;">${esc(l.matiere)}</td>
           <td style="text-align:center; padding:7px 10px; border:1px solid #eee; font-weight:600;">${l.note===null?'—':l.note}</td></tr>
         `).join("")}</tbody>
       </table>
@@ -3043,12 +3038,12 @@ function renderEmploiGrid(){
   }
   const creneaux = [...new Set(cours.map(c=>c.creneau))].sort();
   wrap.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>Horaire</th>${jours.map(j=>`<th>${j}</th>`).join("")}</tr></thead>
+    <thead><tr><th>Horaire</th>${jours.map(j=>`<th>${esc(j)}</th>`).join("")}</tr></thead>
     <tbody>${creneaux.map(cr=>`
-      <tr><td style="font-weight:600">${cr}</td>${jours.map(j=>{
+      <tr><td style="font-weight:600">${esc(cr)}</td>${jours.map(j=>{
         const c = cours.find(x=>x.jour===j && x.creneau===cr);
         if(!c) return `<td style="color:var(--text-mute)">—</td>`;
-        return `<td><div style="font-weight:600">${c.matiere}</div><div style="font-size:11px;color:var(--text-mute)">${c.salle}</div><button class="btn btn-sm btn-danger" style="margin-top:4px" onclick="supprimerCours('${c.id}')">Retirer</button></td>`;
+        return `<td><div style="font-weight:600">${esc(c.matiere)}</div><div style="font-size:11px;color:var(--text-mute)">${esc(c.salle)}</div><button class="btn btn-sm btn-danger" style="margin-top:4px" onclick="supprimerCours('${c.id}')">Retirer</button></td>`;
       }).join("")}</tr>
     `).join("")}</tbody>
   </table></div>`;
@@ -3157,8 +3152,8 @@ function renderExamensList(){
     <tbody>${list.length===0?`<tr><td colspan="5" style="text-align:center;color:var(--text-mute)">Aucun examen ne correspond aux critères.</td></tr>`:list.map(e=>{
       const niv = niveauObj(e.niveauId);
       const badgeClass = e.statut==="Terminé"?"green":(e.statut==="Planifié"?"blue":"orange");
-      return `<tr><td>${e.date}</td><td>${niv?niv.nom:"—"}</td><td>${esc(e.titre)}</td>
-        <td><span class="badge ${badgeClass}">${e.statut}</span></td>
+      return `<tr><td>${esc(e.date)}</td><td>${niv?niv.nom:"—"}</td><td>${esc(e.titre)}</td>
+        <td><span class="badge ${badgeClass}">${esc(e.statut)}</span></td>
         <td style="display:flex;gap:6px"><button class="btn btn-sm btn-primary" onclick="ouvrirComposition('${e.id}')">Notes &amp; classement</button><button class="btn btn-sm btn-danger" onclick="supprimerExamen('${e.id}')">Supprimer</button></td></tr>`;
     }).join("")}</tbody>
   </table>`;
@@ -3219,7 +3214,7 @@ function ouvrirComposition(examenId){
       <button class="btn" onclick="renderExamens()">← Retour au calendrier</button>
     </div>
     <div class="panel" style="margin-bottom:18px">
-      <div class="panel-head"><div><h3>${esc(ex.titre)}</h3><span class="hint">${niv.nom} · ${ex.date} · ${eleves.length} élève(s)</span></div>${btnImprimer('Saisie des notes — '+ex.titre)}</div>
+      <div class="panel-head"><div><h3>${esc(ex.titre)}</h3><span class="hint">${niv.nom} · ${esc(ex.date)} · ${eleves.length} élève(s)</span></div>${btnImprimer('Saisie des notes — '+ex.titre)}</div>
       <div class="table-wrap" id="compoSaisieWrap"></div>
     </div>
     <div class="panel">
@@ -3375,7 +3370,7 @@ function renderDisciplineList(){
       const e = eleveById(s.eleveId);
       const niv = e ? niveauObj(e.niveauId) : null;
       const badgeClass = s.gravite==="Grave"?"red":(s.gravite==="Modérée"?"orange":"grey");
-      return `<tr><td>${s.date}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${niv?niv.nom:"—"}</td>
+      return `<tr><td>${esc(s.date)}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${niv?niv.nom:"—"}</td>
         <td>${esc(s.nature)}</td><td><span class="badge ${badgeClass}">${s.gravite}</span></td><td>${esc(s.decision)}</td></tr>`;
     }).join("")}</tbody>
   </table>`;
@@ -3524,7 +3519,7 @@ function renderBiblioCatalogue(c){
       <div class="table-wrap"><table>
         <thead><tr><th>Titre</th><th>Auteur</th><th>Catégorie</th><th>Exemplaires</th><th>Disponibles</th><th></th></tr></thead>
         <tbody>${DB.livres.map(l=>`
-          <tr><td>${l.titre}</td><td>${l.auteur}</td><td>${l.categorie}</td><td>${l.exemplaires}</td>
+          <tr><td>${esc(l.titre)}</td><td>${esc(l.auteur)}</td><td>${esc(l.categorie)}</td><td>${l.exemplaires}</td>
           <td><span class="badge ${l.disponibles>0?'green':'red'}">${l.disponibles}</span></td>
           <td><button class="btn btn-sm" ${l.disponibles<=0?'disabled style="opacity:.4"':''} onclick="openEmpruntForm('${l.id}')">Prêter</button></td></tr>
         `).join("")}</tbody>
@@ -3567,7 +3562,7 @@ function openEmpruntForm(livreId){
   const livre = DB.livres.find(l=>l.id===livreId);
   openModal(`
     <div class="form-grid">
-      <div class="field field-span2"><label>Livre</label><input value="${livre.titre}" disabled></div>
+      <div class="field field-span2"><label>Livre</label><input value="${esc(livre.titre)}" disabled></div>
       <div class="field field-span2"><label>Élève emprunteur</label>
         <select id="e_eleve">${DB.eleves.filter(e=>e.statut==="actif").map(e=>`<option value="${e.id}">${eleveNomComplet(e)} — ${niveauObj(e.niveauId).nom}</option>`).join("")}</select>
       </div>
@@ -3651,7 +3646,7 @@ function renderCommunication(){
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
             <div>
               <div style="font-weight:700;font-size:14px">${esc(a.titre)}</div>
-              <div style="font-size:11px;color:var(--text-mute);margin-top:2px">${a.date} · ${esc(a.cible)}</div>
+              <div style="font-size:11px;color:var(--text-mute);margin-top:2px">${esc(a.date)} · ${esc(a.cible)}</div>
             </div>
             <button class="btn btn-sm btn-danger" onclick="supprimerAnnonce('${a.id}')">Supprimer</button>
           </div>
@@ -4030,7 +4025,7 @@ function bulletinPaieContenuHTML(b, p, copie){
           <div class="bp-employe-fields">
             <div class="bp-employe-row"><span class="bp-lbl">Employé</span><span class="bp-val">${p?esc(p.prenom)+' '+esc(p.nom):"—"}</span></div>
             <div class="bp-employe-row"><span class="bp-lbl">Fonction</span><span class="bp-val">${p?esc(p.fonction):"—"}</span></div>
-            <div class="bp-employe-row last"><span class="bp-lbl">Date d'émission</span><span class="bp-val">${b.date}</span></div>
+            <div class="bp-employe-row last"><span class="bp-lbl">Date d'émission</span><span class="bp-val">${esc(b.date)}</span></div>
           </div>
         </div>
 
@@ -5168,20 +5163,8 @@ function renderParametres(){
     </div>
 
     <div class="panel" style="margin-bottom:18px">
-      <div class="panel-head"><div><h3>Code PIN de connexion</h3><span class="hint">Le PIN est enregistré uniquement sur cet appareil (haché) et fonctionne sans internet</span></div></div>
-      <div class="form-grid">
-        <div class="field"><label>PIN actuel</label><input type="password" id="pinCur" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></div>
-        <div class="field"><label>Nouveau PIN</label><input type="password" id="pinN1" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></div>
-        <div class="field"><label>Confirmer le nouveau PIN</label><input type="password" id="pinN2" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></div>
-      </div>
-      <div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="changerMonPin()">Modifier mon PIN</button></div>
-      ${SESSION.profile === "direction" ? `
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-          <div style="font-size:12.5px;color:var(--text-dim);margin-bottom:10px">Réinitialiser le PIN d'un autre profil (retour à 2027) :</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            ${Object.keys(PROFILES).filter(p=>p!=="direction").map(p=>`<button class="btn btn-sm" onclick="reinitialiserPinProfil('${p}')">${PROFILES[p].label}</button>`).join("")}
-          </div>
-        </div>` : ""}
+      <div class="panel-head"><div><h3>Connexion</h3><span class="hint">Authentification unique par compte Firebase</span></div></div>
+      <div style="font-size:13px;color:var(--text-dim);line-height:1.7">Chaque profil se connecte avec le mot de passe de son compte Firebase, demandé une seule fois sur chaque appareil. Pour changer un mot de passe : Console Firebase → Authentication → Users.</div>
     </div>
 
     <div class="panel" style="margin-bottom:18px">
@@ -5339,7 +5322,6 @@ function renderAdministration(){
           ${optionsCopie(p)}
         </select>
         <button class="btn btn-sm ${actif?"btn-danger":""}" onclick="adminBasculerActif('${p}')">${actif?"Désactiver":"Activer"}</button>
-        <button class="btn btn-sm" onclick="reinitialiserPinProfil('${p}')">PIN → 2027</button>
         <button class="btn btn-sm" onclick="adminVoirDroits('${p}')">Voir droits</button>
       </div>
     </div>`;
@@ -5475,7 +5457,7 @@ function renderAdministration(){
     <div class="panel">
       <div class="panel-head"><h3>Bonnes pratiques</h3></div>
       <ul style="font-size:12.5px;color:var(--text-dim);line-height:1.8;padding-left:18px">
-        <li>Les PIN sont propres à chaque appareil : « PIN → 2027 » réinitialise le PIN <b>sur cet appareil</b> uniquement.</li>
+        <li>Un seul mot de passe par profil : celui du compte Firebase (Console Firebase → Authentication). Il est demandé une fois par appareil ; changez-le dans la console quand une personne quitte son poste.</li>
         <li>Republiez <code>firestore.rules</code> après chaque changement de droits pour qu'ils soient aussi appliqués <b>côté serveur</b>.</li>
         <li>Les mots de passe des anciennes versions (v10 à v13) étaient visibles dans le code : changez-les dans Firebase Authentication.</li>
         <li>Désactivez un profil dès qu'une personne quitte son poste : sa session ouverte est fermée automatiquement.</li>
@@ -5721,7 +5703,14 @@ function traceAjouter(action, coll, libelle, detail, nb){
   if(SESSION && SESSION.userId) entree.utilisateur = String(SESSION.name || "").slice(0,80);
   if(typeof nb === "number") entree.nb = nb;   // Firestore refuse les valeurs « undefined »
   DB.journal.push(entree);
+  // v25 : le journal est plafonné pour ne pas saturer le document de 1 Mio. Seule la Direction peut purger
+  // (les règles Firestore interdisent aux autres profils de retirer des entrées).
+  if(SESSION && SESSION.profile === "direction" && DB.journal.length > JOURNAL_MAX){
+    DB.journal.sort((a,b)=> (a.ts||0) - (b.ts||0));
+    DB.journal.splice(0, DB.journal.length - JOURNAL_GARDE);
+  }
 }
+const JOURNAL_MAX = 1200, JOURNAL_GARDE = 900;
 function traceDiffDroits(avantJson){
   let avant = {};
   try{ avant = JSON.parse(avantJson) || {}; }catch(e){}
@@ -6219,25 +6208,45 @@ function exportBackup(){
   link.click();
   toast("Sauvegarde exportée.");
 }
+/* Contrôle structurel d'une sauvegarde importée : renvoie null si valide, sinon le motif du refus. */
+function validerSauvegarde(data){
+  if(!data || typeof data !== "object" || Array.isArray(data)) return "le fichier n'est pas une sauvegarde GSPS";
+  if(!Array.isArray(data.eleves)) return "la liste des élèves est absente";
+  if(Object.keys(data).some(k=> k === "__proto__" || k === "constructor" || k === "prototype")) return "clé interdite dans le fichier";
+  for(const champ of DB_LIST_FIELDS){
+    if(data[champ] === undefined) continue;
+    if(!Array.isArray(data[champ])) return "« " + champ + " » doit être une liste";
+    if(data[champ].some(it=> !it || typeof it !== "object" || Array.isArray(it))) return "« " + champ + " » contient un enregistrement invalide";
+  }
+  return null;
+}
 function restoreBackup(input){
+  if(!SESSION || SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); input.value = ""; return; }
   const file = input.files[0];
   if(!file) return;
   const reader = new FileReader();
   reader.onload = async (e)=>{
     try{
       const data = JSON.parse(e.target.result);
-      if(!data.eleves) throw new Error("format invalide");
-      if(!(await confirmer("Restaurer cette sauvegarde ? Toutes les données actuelles seront remplacées."))){ input.value = ""; return; }
-      saveDB(data);
+      const motif = validerSauvegarde(data);
+      if(motif) throw new Error(motif);
+      const ko = Math.round(new Blob([JSON.stringify(data)]).size / 1024);
+      if(ko > 900){ toast("Sauvegarde trop volumineuse (" + ko + " Ko) : le serveur refuserait l'enregistrement (limite 1024 Ko).", true); input.value = ""; return; }
+      if(!(await confirmer("Restaurer cette sauvegarde ? Toutes les données actuelles seront remplacées.\nUne copie de la base actuelle sera d'abord téléchargée."))){ input.value = ""; return; }
+      exportBackup(); // copie de sécurité de l'état actuel avant écrasement
+      saveDB(normaliserDB(data));
+      input.value = "";
       toast("Sauvegarde restaurée avec succès.");
       navigate(currentPage);
     }catch(err){
-      toast("Fichier de sauvegarde invalide.", true);
+      input.value = "";
+      toast("Fichier de sauvegarde invalide : " + ((err && err.message) || "format inconnu") + ".", true);
     }
   };
   reader.readAsText(file);
 }
 async function resetDemoData(){
+  if(!SESSION || SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
   if(!await confirmer("Réinitialiser toutes les données de démonstration ? Cette action est irréversible.")) return;
   const fresh = genererDonneesInitiales();
   saveDB(fresh);
@@ -6268,6 +6277,7 @@ function ouvrirPassageProduction(){
 }
 
 function confirmerPassageProduction(){
+  if(!SESSION || SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
   const val = document.getElementById("pp_confirm").value.trim();
   if(val !== "PRODUCTION"){
     toast('Veuillez taper exactement "PRODUCTION" pour confirmer.', true);
@@ -6287,10 +6297,8 @@ function confirmerPassageProduction(){
 
 const SESSION_KEY = "gsps_session_v1";
 
-/* NOTE SÉCURITÉ : ces mots de passe sont visibles dans le code source (app 100% locale, sans serveur).
-   Le PIN est haché (SHA-256 + sel) et stocké localement : il empêche l'accès accidentel ou curieux, mais ne protège PAS contre
-   un utilisateur qui inspecte le code. Pour des données réelles (élèves, paiements), une vraie
-   authentification côté serveur est indispensable avant tout déploiement en production. */
+/* NOTE SÉCURITÉ : depuis la v22, l'authentification repose uniquement sur les comptes Firebase des profils
+   (aucun mot de passe ni PIN dans le code ; voir firestore.rules pour l'autorité côté serveur). */
 const PROFILES = {
   direction:    { label:"Direction", initials:"DI", nav:["dashboard","eleves","finances","transport","pedagogie","livret","emploi","examens","discipline","cantine","bibliotheque","communication","personnel","paie","enveloppes","rapports","honneur","parametres","administration","tracabilite"] },
   comptabilite: { label:"Comptabilité", initials:"CO", nav:["dashboard","eleves","finances","transport","cantine","paie","enveloppes","rapports"] },
@@ -6441,6 +6449,8 @@ let fbModeSecours = false; // vrai si la lecture initiale a échoué : on n'écr
 let fbSyncActive = false;   // true une fois l'écoute temps réel démarrée
 let fbApplyingRemote = false; // évite de ré-écrire dans Firestore ce qu'on vient de recevoir de Firestore
 let fbOnline = true;
+let fbPendingWrites = false; // vrai tant que des modifications locales n'ont pas atteint le serveur
+let __dernierControleTaille = 0;
 let fbWriteError = null; // dernier code d'erreur d'écriture serveur (null = tout va bien)
 
 function majIndicateurConnexion(){
@@ -6451,18 +6461,24 @@ function majIndicateurConnexion(){
     el.style.cssText = "position:fixed;bottom:10px;right:10px;font-size:11px;padding:4px 10px;border-radius:20px;z-index:9998;font-family:inherit;transition:opacity .3s;box-shadow:0 1px 4px rgba(0,0,0,.2)";
     document.body.appendChild(el);
   }
+  el.style.cursor = "pointer";
+  el.onclick = ()=> toast("État : " + el.textContent + " — Taille de la base : " + (window.__tailleBaseKo || "?") + " Ko sur 1024 Ko maximum (limite Firestore).");
   if(fbWriteError){
     el.textContent = "⚠ Non enregistré sur le serveur [" + fbWriteError + "]";
     el.style.background = "#fde8ec";
     el.style.color = "#b3243a";
-  } else if(fbOnline){
+  } else if(!fbOnline){
+    el.textContent = fbPendingWrites ? "○ Hors-ligne — modifications en attente d'envoi" : "○ Hors-ligne — travail local en cours";
+    el.style.background = "#fdf3e3";
+    el.style.color = "#9a6a12";
+  } else if(fbPendingWrites){
+    el.textContent = "⏳ Envoi au serveur en cours…";
+    el.style.background = "#fdf3e3";
+    el.style.color = "#9a6a12";
+  } else {
     el.textContent = "● Synchronisé";
     el.style.background = "#e6f7ec";
     el.style.color = "#1c7a3f";
-  } else {
-    el.textContent = "○ Hors-ligne — travail local en cours";
-    el.style.background = "#fdf3e3";
-    el.style.color = "#9a6a12";
   }
 }
 
@@ -6476,8 +6492,10 @@ async function loadDB(){
     fbOnline = true;
     fbModeSecours = false;
     demarrerSyncTempsReel();
-    const db = normaliserDB(dbDepuisFirestore(remote));
-    __dbDernieresCles = __calculerCles(db);
+    const brut = dbDepuisFirestore(remote);
+    const cles = __calculerCles(brut);          // référence = état réel du serveur, AVANT migrations locales
+    const db = normaliserDB(brut);
+    __dbDernieresCles = cles;
     return db;
   }
   if(remote === null){
@@ -6486,7 +6504,9 @@ async function loadDB(){
     fbOnline = true;
     const db = normaliserDB(genererDonneesInitiales());
     __dbDernieresCles = __calculerCles(db);
-    await window.__fb.saveDB(dbVersFirestore(db));
+    __dbDernieresSigs = null;   // première écriture : on envoie tout
+    { const charge = dbVersFirestore(db), env = __envoiEnCours;
+      if(await window.__fb.saveDB(charge)) __validerEnvoi(env); }
     demarrerSyncTempsReel();
     return db;
   }
@@ -6504,22 +6524,37 @@ async function loadDB(){
 function demarrerSyncTempsReel(){
   if(fbSyncActive) return;
   fbSyncActive = true;
-  window.__fb.listen((remoteDb, majLe, fromCache)=>{
+  window.__fb.listen((remoteDb, majLe, fromCache, enAttente)=>{
     if(!remoteDb) return;
+    fbPendingWrites = !!enAttente; // modifications locales pas encore confirmées par le serveur
+    if(!window.__premierSnapshotRecu){
+      window.__premierSnapshotRecu = true;
+      if(enAttente) toast("Des modifications d'une session précédente sont en cours d'envoi au serveur.", true);
+    }
     fbOnline = !fromCache; // fromCache=true veut dire : donnée servie localement, pas confirmée par le serveur en ce moment
     majIndicateurConnexion();
+    // v25 : un simple changement de métadonnées (cache → serveur, écriture confirmée) ne change pas les données :
+    // on ne reconstruit pas la page (filtres, saisies et défilement conservés).
+    let sigDistante = null;
+    try{ sigDistante = JSON.stringify(remoteDb); }catch(e){}
+    const inchange = sigDistante !== null && sigDistante === __derniereSigDistante;
+    __derniereSigDistante = sigDistante;
+    if(inchange) return;
     // Ignore l'écho de notre propre écriture (on vient de la faire nous-mêmes, DB est déjà à jour)
     if(fbApplyingRemote) return;
     fbApplyingRemote = true;
     try{
-      DB = normaliserDB(dbDepuisFirestore(remoteDb));
-      __dbDernieresCles = __calculerCles(DB);
+      const brutDistant = dbDepuisFirestore(remoteDb);
+      const clesDistantes = __calculerCles(brutDistant);   // référence = état réel du serveur, AVANT migrations locales
+      DB = normaliserDB(brutDistant);
+      __dbDernieresCles = clesDistantes;
       appliquerDroitsDepuisDB();
       traceSnapshot(); // ce qui vient d'un autre poste a déjà été journalisé là-bas
       // Profil désactivé ou module retiré pendant la session : on applique tout de suite
       if(SESSION && !profilActif(SESSION.profile)){ sessionStorage.removeItem(SESSION_KEY); location.reload(); return; }
       if(SESSION){ buildNav(); if(!PROFILES[SESSION.profile].nav.includes(currentPage)) currentPage = PROFILES[SESSION.profile].nav[0]; }
-      if(SESSION) rerenderCurrentPage();
+      // Écho local d'une écriture en attente : la page est déjà à jour (l'action l'a rendue), on ne la reconstruit pas.
+      if(SESSION && !enAttente) rerenderCurrentPage();
     }catch(err){
       console.error("Application des données distantes échouée :", err);
     }finally{
@@ -6557,7 +6592,10 @@ function __clePourItem(field, item, i){ return (item && item.id) ? String(item.i
 
 let __dbDernieresCles = null; // dernier état connu (chargé ou envoyé) pour détecter les suppressions
 
-function __calculerCles(db){
+let __dbDernieresSigs = null;   // signatures JSON du dernier état connu du serveur (pour n'envoyer que les différences)
+let __envoiEnCours = null;
+let __derniereSigDistante = null;
+function __calculerClesSansEffet(db){
   const out = {};
   DB_LIST_FIELDS.forEach(f=>{
     const arr = Array.isArray(db[f]) ? db[f] : [];
@@ -6565,26 +6603,67 @@ function __calculerCles(db){
   });
   return out;
 }
+/* Appelé quand on charge ou reçoit l'état du serveur : mémorise clés ET signatures comme référence. */
+function __calculerCles(db){
+  const sigs = { listes:{}, autres:{} };
+  Object.keys(db).forEach(k=>{ if(!DB_LIST_FIELDS.includes(k)) sigs.autres[k] = JSON.stringify(db[k]); });
+  DB_LIST_FIELDS.forEach(f=>{
+    const arr = Array.isArray(db[f]) ? db[f] : [];
+    const m = {};
+    arr.forEach((item,i)=>{ m[__clePourItem(f, item, i)] = JSON.stringify(item); });
+    sigs.listes[f] = m;
+  });
+  __dbDernieresSigs = sigs;
+  return __calculerClesSansEffet(db);
+}
 
 /* Transforme le DB en mémoire (tableaux) vers la forme envoyée à Firestore (objets indexés par id).
    Détecte aussi les suppressions depuis le dernier envoi/chargement connu et les marque
    explicitement avec le "sentinel" de suppression de champ, sans quoi un enregistrement supprimé
    localement resterait pour toujours sur le serveur (un merge ne fait qu'ajouter/mettre à jour). */
 function dbVersFirestore(db){
+  /* v25 — écriture différentielle : seuls les enregistrements (et réglages) modifiés depuis le dernier
+     état connu sont envoyés. Un appareil qui détient une copie périmée n'écrase donc plus les
+     enregistrements qu'il n'a pas touchés. Un profil restreint n'envoie que les collections
+     que les règles Firestore l'autorisent à modifier (plus de refus global à cause d'un champ étranger). */
   const out = {};
-  Object.keys(db).forEach(k=>{ if(!DB_LIST_FIELDS.includes(k)) out[k] = db[k]; });
-  // La matrice des droits n'est modifiable que par la Direction : un autre profil ne doit jamais
-  // l'envoyer (même recalculée localement par une migration), sinon le serveur refuserait TOUTE l'écriture.
-  if(!SESSION || SESSION.profile !== "direction") delete out.droits;
+  const sigsPrec = __dbDernieresSigs;                 // null = tout envoyer (première écriture)
   const clesPrecedentes = __dbDernieresCles;
+  const nouvellesSigs = { listes:{}, autres:{} };
+  const estDirection = !!SESSION && SESSION.profile === "direction";
+  let autorisees = null;                               // null = tout (Direction)
+  if(!estDirection){
+    const prof = SESSION && SESSION.profile;
+    const d = DB && DB.droits && DB.droits[prof];
+    autorisees = (d && Array.isArray(d.collections)) ? d.collections.slice()
+               : collectionsPourModules(prof && PROFILES[prof] ? PROFILES[prof].nav : []);
+    autorisees.push("journal");
+  }
+  const ok = (k)=> autorisees === null || autorisees.includes(k);
+  let nbChangements = 0;
+  // Réglages et objets simples (compteurs, parametres, fraisParNiveau, matieresParCycle, droits…)
+  Object.keys(db).forEach(k=>{
+    if(DB_LIST_FIELDS.includes(k)) return;
+    const sig = JSON.stringify(db[k]);
+    nouvellesSigs.autres[k] = sig;
+    if(!estDirection && (k === "droits" || k === "utilisateurs")) return;
+    if(!ok(k)) return;
+    if(sigsPrec && sigsPrec.autres[k] === sig) return;
+    out[k] = db[k]; nbChangements++;
+  });
+  // Collections : un objet indexé par id, limité aux enregistrements nouveaux ou modifiés
   DB_LIST_FIELDS.forEach(field=>{
     const arr = Array.isArray(db[field]) ? db[field] : [];
+    const sigs = {};
     const map = {};
     const vues = new Set();
     arr.forEach((item,i)=>{
       const cle = __clePourItem(field, item, i);
-      map[cle] = item; vues.add(cle);
+      const sig = JSON.stringify(item);
+      sigs[cle] = sig; vues.add(cle);
+      if(!sigsPrec || !sigsPrec.listes[field] || sigsPrec.listes[field][cle] !== sig){ map[cle] = item; }
     });
+    nouvellesSigs.listes[field] = sigs;
     if(clesPrecedentes && clesPrecedentes[field]){
       clesPrecedentes[field].forEach(ancienneCle=>{
         if(!vues.has(ancienneCle) && window.__fb && window.__fb.deleteSentinel){
@@ -6592,11 +6671,19 @@ function dbVersFirestore(db){
         }
       });
     }
-    out[field] = map;
+    if(field === "utilisateurs" && !estDirection) return;   // seule la Direction gère les utilisateurs
+    if(!ok(field)) return;
+    const n = Object.keys(map).length;
+    if(n){ out[field] = map; nbChangements += n; }
   });
-  if(!SESSION || SESSION.profile !== "direction") delete out.utilisateurs; // seule la Direction gère les utilisateurs
-  __dbDernieresCles = __calculerCles(db);
+  // Validé seulement si l'écriture réussit (voir __validerEnvoi) : sinon les changements seront renvoyés.
+  __envoiEnCours = { sigs: nouvellesSigs, cles: __calculerClesSansEffet(db), vide: nbChangements === 0 };
   return out;
+}
+function __validerEnvoi(env){
+  if(!env) return;
+  __dbDernieresSigs = env.sigs;
+  __dbDernieresCles = env.cles;
 }
 
 /* Reconvertit les données reçues de Firestore (objets indexés par id) en tableaux,
@@ -6712,19 +6799,33 @@ function resoudreDoublonsNumeros(){
   }
   return corriges.length;
 }
+function controlerTailleBase(){
+  const now = Date.now();
+  if(now - __dernierControleTaille < 60000) return;
+  __dernierControleTaille = now;
+  try{
+    const ko = Math.round(new Blob([JSON.stringify(DB)]).size / 1024);
+    window.__tailleBaseKo = ko;
+    if(ko > 850) toast("Base volumineuse : " + ko + " Ko sur 1024 Ko maximum. Au-delà, le serveur refuse l'enregistrement : contactez le développeur.", true);
+  }catch(e){}
+}
 function saveDB(db){
   DB = db || DB;
   if(!fbApplyingRemote) traceEnregistrerChangements(); // journalise ce qui a changé depuis la dernière sauvegarde
   // Les données scolaires ne sont plus recopiées dans localStorage : Firestore + son cache persistant IndexedDB sont la source de vérité.
   if(fbApplyingRemote) return Promise.resolve(true); // on vient de recevoir cette donnée de Firestore, pas la peine de la réécrire
   if(fbModeSecours){ toast("Données non chargées depuis le serveur : enregistrement bloqué pour ne pas écraser la base. Reconnectez-vous.", true); return Promise.resolve(false); }
-  // setDoc() réussit immédiatement même hors-ligne : Firestore écrit dans son cache local
-  // et met la donnée en file d'attente pour l'envoyer au serveur dès la reconnexion.
+  // setDoc() : Firestore écrit dans son cache local et met la donnée en file d'attente ; la promesse
+  // ne se résout qu'une fois le serveur ayant confirmé (ou refusé) l'écriture.
   // dbVersFirestore() convertit les tableaux en objets indexés par id pour permettre
   // une fusion (merge) au lieu d'un écrasement complet du document (voir plus haut).
   /* Renvoie une promesse : true si l'écriture est acceptée (ou mise en file hors-ligne), false sinon.
      Les appelants peuvent l'attendre (await saveDB()) ou l'ignorer comme avant. */
-  return Promise.resolve(window.__fb.saveDB(dbVersFirestore(DB))).then(ok=>{
+  controlerTailleBase();
+  const __charge = dbVersFirestore(DB), __envoi = __envoiEnCours;
+  if(__envoi && __envoi.vide) return Promise.resolve(true);   // rien n'a changé : aucune écriture
+  return Promise.resolve(window.__fb.saveDB(__charge)).then(ok=>{
+    if(ok !== false) __validerEnvoi(__envoi);
     if(ok === false){
       fbWriteError = window.__fb.lastWriteError() || "erreur";
       majIndicateurConnexion();
@@ -6742,151 +6843,6 @@ function saveDB(db){
     return false;
   });
 }
-
-/* ---------- Auth : PIN local (4 chiffres, haché, 100 % hors-ligne) ---------- */
-const PIN_KEY = "gsps_pins_v1";        // { profil: { hash, salt, initial:bool } }
-const PIN_LOCK_KEY = "gsps_pinlock_v1"; // { profil: { fails, until } }
-const PIN_LEN = 4;
-const PIN_DEFAULT = "2027";
-const PIN_MAX_FAILS = 5;
-const PIN_LOCK_MS = 30000;
-let pinBuf = "";
-let pinMode = "enter";     // "enter" | "new" | "confirm"
-let pinNew = "";
-let pinLockTimer = null;
-
-async function pinHash(pin, salt){
-  const data = new TextEncoder().encode(salt + ":" + pin);
-  if(window.crypto && crypto.subtle){
-    const buf = await crypto.subtle.digest("SHA-256", data);
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
-  }
-  // Repli (contexte non sécurisé) : empreinte simple, suffisante pour un PIN local
-  let h = 5381; const s = salt + ":" + pin;
-  for(let i=0;i<s.length;i++){ h = ((h<<5)+h) ^ s.charCodeAt(i); }
-  return "f" + (h>>>0).toString(16);
-}
-function pinRandomSalt(){
-  const a = new Uint8Array(12);
-  (window.crypto || {getRandomValues:x=>{for(let i=0;i<x.length;i++)x[i]=Math.floor(Math.random()*256);}}).getRandomValues(a);
-  return Array.from(a).map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-function pinStoreLoad(){ try{ return JSON.parse(localStorage.getItem(PIN_KEY)) || {}; }catch(e){ return {}; } }
-function pinStoreSave(o){ localStorage.setItem(PIN_KEY, JSON.stringify(o)); }
-function pinLockLoad(){ try{ return JSON.parse(localStorage.getItem(PIN_LOCK_KEY)) || {}; }catch(e){ return {}; } }
-function pinLockSave(o){ localStorage.setItem(PIN_LOCK_KEY, JSON.stringify(o)); }
-
-/* Renvoie l'entrée PIN du profil ; la crée avec le PIN initial si absente */
-async function pinEnsure(profile){
-  const store = pinStoreLoad();
-  if(!store[profile]){
-    const salt = pinRandomSalt();
-    store[profile] = { salt, hash: await pinHash(PIN_DEFAULT, salt), initial: true };
-    pinStoreSave(store);
-  }
-  return store[profile];
-}
-async function pinSet(profile, pin){
-  const store = pinStoreLoad();
-  const salt = pinRandomSalt();
-  store[profile] = { salt, hash: await pinHash(pin, salt), initial: false };
-  pinStoreSave(store);
-}
-
-function pinRender(){
-  document.querySelectorAll("#pinDots span").forEach((d,i)=> d.classList.toggle("on", i < pinBuf.length));
-}
-function pinSetInfo(msg){ const el = document.getElementById("pinInfo"); if(el) el.textContent = msg; }
-function pinError(msg){
-  const err = document.getElementById("loginError");
-  err.textContent = msg; err.style.display = "block";
-  const dots = document.getElementById("pinDots");
-  dots.classList.remove("shake"); void dots.offsetWidth; dots.classList.add("shake");
-}
-function pinClearError(){ document.getElementById("loginError").style.display = "none"; }
-function pinPadDisabled(dis){ document.querySelectorAll("#pinPad button").forEach(b=> b.disabled = dis); }
-
-function pinReset(){
-  pinBuf = ""; pinNew = ""; pinMode = "enter";
-  pinRender(); pinClearError();
-  const p = document.getElementById("loginProfile").value;
-  pinSetInfo(p ? "Saisissez votre code PIN à 4 chiffres." : "Choisissez votre profil puis saisissez votre code PIN.");
-  pinCheckLock();
-}
-
-/* Verrouillage temporaire après trop d'essais */
-function pinCheckLock(){
-  clearTimeout(pinLockTimer);
-  const p = document.getElementById("loginProfile").value;
-  if(!p){ pinPadDisabled(false); return false; }
-  const lock = pinLockLoad()[p];
-  const remain = lock && lock.until ? lock.until - Date.now() : 0;
-  if(remain > 0){
-    pinPadDisabled(true);
-    pinError("Trop d'essais. Réessayez dans " + Math.ceil(remain/1000) + " s.");
-    pinLockTimer = setTimeout(()=>{ pinPadDisabled(false); pinClearError(); pinReset(); }, Math.min(remain, 1000));
-    if(remain > 1000) pinLockTimer = setTimeout(pinCheckLock, 1000);
-    return true;
-  }
-  pinPadDisabled(false);
-  return false;
-}
-
-function pinKey(k){
-  const profile = document.getElementById("loginProfile").value;
-  const err = document.getElementById("loginError");
-  if(!profile){ err.textContent = "Veuillez d'abord choisir un profil."; err.style.display = "block"; return; }
-  if(pinCheckLock()) return;
-  if(k === "clear"){ pinBuf = ""; pinRender(); return; }
-  if(k === "back"){ pinBuf = pinBuf.slice(0,-1); pinRender(); return; }
-  if(pinBuf.length >= PIN_LEN) return;
-  pinClearError();
-  pinBuf += k; pinRender();
-  if(pinBuf.length === PIN_LEN) setTimeout(pinSubmit, 120);
-}
-
-async function pinSubmit(){
-  const profile = document.getElementById("loginProfile").value;
-  const entered = pinBuf;
-  pinBuf = ""; pinRender();
-
-  /* --- Étape « nouveau PIN » (après connexion avec le PIN initial) --- */
-  if(pinMode === "new"){
-    if(entered === PIN_DEFAULT){ pinError("Choisissez un PIN différent de 2027."); return; }
-    if(/^(\d)\1{3}$/.test(entered) || entered === "1234" || entered === "4321"){ pinError("PIN trop simple. Choisissez-en un autre."); return; }
-    pinNew = entered; pinMode = "confirm";
-    pinSetInfo("Confirmez votre nouveau PIN."); return;
-  }
-  if(pinMode === "confirm"){
-    if(entered !== pinNew){ pinMode = "new"; pinNew = ""; pinError("Les deux PIN ne correspondent pas. Recommencez."); pinSetInfo("Choisissez un nouveau PIN à 4 chiffres."); return; }
-    await pinSet(profile, entered);
-    pinResetFails(profile);
-    toast("PIN enregistré.");
-    await pinLogin(profile); return;
-  }
-
-  /* --- Vérification du PIN saisi --- */
-  const rec = await pinEnsure(profile);
-  const ok = (await pinHash(entered, rec.salt)) === rec.hash;
-  if(!ok){
-    const locks = pinLockLoad();
-    const l = locks[profile] || { fails:0, until:0 };
-    l.fails = (l.fails||0) + 1;
-    if(l.fails >= PIN_MAX_FAILS){ l.until = Date.now() + PIN_LOCK_MS; l.fails = 0; }
-    locks[profile] = l; pinLockSave(locks);
-    if(l.until > Date.now()){ pinCheckLock(); return; }
-    pinError("Code PIN incorrect (" + (PIN_MAX_FAILS - l.fails) + " essai(s) restant(s)).");
-    return;
-  }
-  pinResetFails(profile);
-  if(rec.initial){
-    pinMode = "new"; pinNew = "";
-    pinSetInfo("Première connexion : choisissez un nouveau PIN à 4 chiffres.");
-    return;
-  }
-  await pinLogin(profile);
-}
-function pinResetFails(profile){ const l = pinLockLoad(); delete l[profile]; pinLockSave(l); }
 
 /* Dialogues asynchrones de l'application (remplacent confirm()/prompt() natifs, bloquants). */
 function __dialogue(titre, message, opts){
@@ -6918,139 +6874,92 @@ function __dialogue(titre, message, opts){
 function confirmer(message, opts){ return __dialogue("", message, opts); }
 function saisir(message, defaut, opts){ return __dialogue("", message, Object.assign({ champ:true, defaut, oui:"Valider", danger:false, inputmode:"numeric" }, opts || {})); }
 
-/* Saisie du mot de passe Firebase dans une fenêtre de l'application (champ masqué).
-   Remplace le prompt() natif, non masqué et souvent bloqué dans les PWA installées. */
-function demanderMotDePasse(titre, lignes, erreur){
-  return new Promise(resolve=>{
-    const ov = document.createElement("div");
-    ov.style.cssText = "position:fixed;inset:0;z-index:100000;background:rgba(10,14,30,.72);display:flex;align-items:center;justify-content:center;padding:16px;";
-    ov.innerHTML = `
-      <div role="dialog" aria-modal="true" style="background:#fff;color:#1a1f36;border-radius:14px;max-width:380px;width:100%;padding:20px 18px;box-shadow:0 12px 40px rgba(0,0,0,.35);font-family:inherit">
-        <div style="font-weight:700;font-size:16px;margin-bottom:8px">${esc(titre)}</div>
-        <div style="font-size:13px;line-height:1.55;color:#5c6478;margin-bottom:12px">${lignes.map(esc).join("<br>")}</div>
-        ${erreur ? `<div style="font-size:12.5px;color:#e0455a;margin-bottom:10px">${esc(erreur)}</div>` : ""}
-        <div style="position:relative">
-          <input id="mdpFbInput" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="Mot de passe Firebase"
-                 style="width:100%;padding:12px 44px 12px 12px;font-size:16px;border:1.5px solid #d3daea;border-radius:10px;outline:none">
-          <button type="button" id="mdpFbEye" aria-label="Afficher ou masquer" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:18px;padding:6px;cursor:pointer">👁</button>
-        </div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
-          <button type="button" id="mdpFbNon" style="padding:10px 16px;border-radius:10px;border:1px solid #d3daea;background:#f6f8fc;font-size:14px;cursor:pointer">Annuler</button>
-          <button type="button" id="mdpFbOui" style="padding:10px 18px;border-radius:10px;border:0;background:#4453d8;color:#fff;font-weight:600;font-size:14px;cursor:pointer">Valider</button>
-        </div>
-      </div>`;
-    document.body.appendChild(ov);
-    const inp = ov.querySelector("#mdpFbInput");
-    const fin = (v)=>{ ov.remove(); resolve(v); };
-    ov.querySelector("#mdpFbOui").onclick = ()=> fin(inp.value || null);
-    ov.querySelector("#mdpFbNon").onclick = ()=> fin(null);
-    ov.querySelector("#mdpFbEye").onclick = ()=>{ inp.type = inp.type === "password" ? "text" : "password"; inp.focus(); };
-    inp.addEventListener("keydown", e=>{ if(e.key === "Enter") fin(inp.value || null); if(e.key === "Escape") fin(null); });
-    setTimeout(()=> inp.focus(), 50);
-  });
+/* ---------- Auth : compte Firebase du profil (seule authentification) ---------- */
+function loginErreur(msg){
+  const el = document.getElementById("loginError");
+  if(!el) return;
+  el.textContent = msg; el.style.display = "block";
+}
+function loginEffacerErreur(){
+  const el = document.getElementById("loginError");
+  if(el) el.style.display = "none";
 }
 
-async function pinLogin(profile){
-  pinClearError();
-  pinBuf = ""; pinNew = ""; pinMode = "enter";
-  afficherEcranChargement();
-  let ok = await window.__fb.signInAsRole(profile);
-  if(!ok && (window.__fb && window.__fb.authErrorMessage) && window.__fb.authErrorMessage().includes("Mot de passe Firebase requis")){
-    const email = window.__fb.emailDuProfil(profile);
-    masquerEcranChargement();
-    let erreur = "";
-    for(let essai = 0; essai < 3 && !ok; essai++){
-      const password = await demanderMotDePasse("Connexion sécurisée Firebase",
-        ["Profil : " + PROFILES[profile].label, "Compte : " + email, "Saisissez le mot de passe Firebase de ce compte. Il n'est pas enregistré dans l'application."], erreur);
-      if(password === null) break;
-      afficherEcranChargement();
-      ok = await window.__fb.signInAsRole(profile, password);
-      if(!ok){
-        masquerEcranChargement();
-        const m = window.__fb.authErrorMessage();
-        if(!/invalid-credential|wrong-password|user-not-found|invalid-login/.test(m)) break;
-        erreur = "Mot de passe incorrect ou compte inexistant.";
-      }
-    }
-    if(!ok) afficherEcranChargement();
-  }
-  if(!ok){
-    masquerEcranChargement();
-    pinError(window.__fb.authErrorMessage());
+/* Au choix du profil : si Firebase a déjà une session valide pour ce compte sur cet appareil,
+   le mot de passe n'est pas redemandé. */
+async function loginProfilChange(){
+  loginEffacerErreur();
+  const profile = document.getElementById("loginProfile").value;
+  const wrap = document.getElementById("loginPassWrap");
+  const info = document.getElementById("loginInfo");
+  const input = document.getElementById("loginPass");
+  input.value = "";
+  if(!profile){
+    wrap.style.display = "";
+    info.textContent = "Choisissez votre profil puis saisissez son mot de passe.";
     return;
   }
+  let active = false;
+  try{ active = !!(window.__fb && await window.__fb.sessionActive(profile)); }catch(e){}
+  if(document.getElementById("loginProfile").value !== profile) return; // le choix a changé pendant l'attente
+  wrap.style.display = active ? "none" : "";
+  info.textContent = active
+    ? "Session sécurisée active sur cet appareil : appuyez sur « Se connecter »."
+    : "Saisissez le mot de passe de ce profil (demandé une seule fois sur cet appareil).";
+  if(!active) setTimeout(()=> input.focus(), 50);
+}
+
+async function loginSubmit(){
+  loginEffacerErreur();
+  const profile = document.getElementById("loginProfile").value;
+  if(!profile){ loginErreur("Veuillez d'abord choisir un profil."); return; }
+  const password = document.getElementById("loginPass").value;
+  await connexionProfil(profile, password || undefined);
+}
+
+async function connexionProfil(profile, password){
+  loginEffacerErreur();
+  if(!window.__fb){
+    loginErreur("Composants Firebase non chargés. Ouvrez l'application une fois avec internet (le temps du chargement), puis elle fonctionnera hors-ligne.");
+    return;
+  }
+  const btn = document.getElementById("loginBtn");
+  if(btn) btn.disabled = true;
+  afficherEcranChargement();
+  const ok = await window.__fb.signInAsRole(profile, password);
+  if(!ok){
+    masquerEcranChargement();
+    if(btn) btn.disabled = false;
+    const m = window.__fb.authErrorMessage();
+    if(m.includes("Mot de passe Firebase requis")) loginErreur("Saisissez le mot de passe de ce profil.");
+    else if(/invalid-credential|wrong-password|user-not-found|invalid-login/.test(m)) loginErreur("Mot de passe incorrect ou compte inexistant.");
+    else loginErreur(m);
+    return;
+  }
+  const champ = document.getElementById("loginPass"); if(champ) champ.value = "";
   DB = await loadDB();
   appliquerDroitsDepuisDB();
   traceSnapshot();
   if(!profilActif(profile)){
     masquerEcranChargement();
-    pinError("Ce profil est désactivé par la Direction.");
+    if(btn) btn.disabled = false;
+    loginErreur("Ce profil est désactivé par la Direction.");
     return;
   }
   masquerEcranChargement();
+  if(btn) btn.disabled = false;
   majIndicateurConnexion();
   let user = null;
   const candidats = utilisateursActifs(profile);
   if(candidats.length){
     user = await choisirUtilisateur(profile, candidats);
-    if(!user){ pinError("Connexion annulée : choisissez votre nom pour continuer."); return; }
+    if(!user){ loginErreur("Connexion annulée : choisissez votre nom pour continuer."); return; }
     try{ localStorage.setItem("gsps_dernier_user_" + profile, user.id); }catch(e){}
   }
   SESSION = { profile, name: user ? utilisateurNomComplet(user) : PROFILES[profile].label, userId: user ? user.id : null, at: Date.now() };
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(SESSION));
   bootApp();
   setTimeout(resoudreDoublonsNumeros, 2000);
-}
-
-/* PIN oublié : demande d'abord de confirmer, puis réinitialise à 2027 sur cet appareil.
-   Seule la Direction peut réinitialiser les autres profils (depuis Paramètres) ; ici on
-   exige le PIN Direction pour réinitialiser n'importe quel profil. */
-async function verifierMotDePasseFirebase(profile, password){
-  const email = window.__fb.emailDuProfil(profile);
-  if(!email || !password) return false;
-  return await window.__fb.signInAsRole(profile, password);
-}
-
-/* PIN oublié : la réinitialisation exige désormais une authentification Firebase réelle.
-   Aucun code de récupération universel n'est présent dans le client. */
-async function pinForgot(){
-  const profile = document.getElementById("loginProfile").value;
-  if(!profile){ toast("Choisissez d'abord le profil concerné.", true); return; }
-  const email = window.__fb.emailDuProfil(profile);
-  const password = await demanderMotDePasse("Réinitialisation sécurisée du PIN", ["Compte Firebase : " + email, "Saisissez le mot de passe Firebase de ce compte pour confirmer votre identité."]);
-  if(password === null || password === "") return;
-  const okAuth = await verifierMotDePasseFirebase(profile, password);
-  if(!okAuth){ toast(window.__fb.authErrorMessage(), true); return; }
-  const store = pinStoreLoad(); delete store[profile]; pinStoreSave(store);
-  pinResetFails(profile);
-  pinReset();
-  toast("PIN réinitialisé à 2027. Il devra être changé à la prochaine connexion.");
-}
-
-/* Changement de PIN depuis l'application (page Paramètres) */
-async function changerMonPin(){
-  const cur = document.getElementById("pinCur").value.trim();
-  const n1 = document.getElementById("pinN1").value.trim();
-  const n2 = document.getElementById("pinN2").value.trim();
-  const re = /^\d{4}$/;
-  if(!re.test(cur) || !re.test(n1) || !re.test(n2)){ toast("Le PIN doit comporter exactement 4 chiffres.", true); return; }
-  const rec = await pinEnsure(SESSION.profile);
-  if((await pinHash(cur, rec.salt)) !== rec.hash){ toast("PIN actuel incorrect.", true); return; }
-  if(n1 !== n2){ toast("Les deux nouveaux PIN ne correspondent pas.", true); return; }
-  if(n1 === PIN_DEFAULT || /^(\d)\1{3}$/.test(n1) || n1 === "1234" || n1 === "4321"){ toast("PIN trop simple, choisissez-en un autre.", true); return; }
-  await pinSet(SESSION.profile, n1);
-  ["pinCur","pinN1","pinN2"].forEach(id=>{ document.getElementById(id).value = ""; });
-  toast("PIN modifié avec succès.");
-}
-/* Direction : réinitialiser le PIN d'un autre profil (retour à 2027, à changer à la connexion) */
-async function reinitialiserPinProfil(profil){
-  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
-  if(!await confirmer("Réinitialiser le PIN de « " + PROFILES[profil].label + " » à 2027 ?")) return;
-  const store = pinStoreLoad(); delete store[profil]; pinStoreSave(store);
-  pinResetFails(profil);
-  traceAjouter("reglage", "pin", PROFILES[profil].label, "PIN réinitialisé sur cet appareil");
-  saveDB();
-  toast("PIN de " + PROFILES[profil].label + " réinitialisé (2027).");
 }
 
 /* Compatibilité : ancien point d'entrée */
@@ -7163,14 +7072,19 @@ document.addEventListener("DOMContentLoaded", async ()=>{
       toast(window.__fb.authErrorMessage(), true);
     }
   }
-  document.getElementById("pinPad").addEventListener("click", e=>{
-    const b = e.target.closest("button[data-k]"); if(b) pinKey(b.dataset.k);
+  // Nettoyage des anciens PIN locaux (supprimés en v22 : seule l'authentification Firebase subsiste)
+  try{ localStorage.removeItem("gsps_pins_v1"); localStorage.removeItem("gsps_pinlock_v1"); }catch(e){}
+  document.getElementById("loginEye").addEventListener("click", ()=>{
+    const i = document.getElementById("loginPass");
+    i.type = i.type === "password" ? "text" : "password"; i.focus();
   });
-  document.addEventListener("keydown", e=>{
-    if(document.getElementById("app").style.display === "block") return;
-    if(/^\d$/.test(e.key)) pinKey(e.key);
-    else if(e.key === "Backspace") pinKey("back");
-    else if(e.key === "Escape") pinKey("clear");
+  document.getElementById("loginPass").addEventListener("keydown", e=>{
+    if(e.key === "Enter"){ e.preventDefault(); loginSubmit(); }
+  });
+  // Fermer l'application avec des modifications encore en file : le serveur pourrait les refuser
+  // plus tard sans que personne ne le voie. On avertit l'utilisateur.
+  window.addEventListener("beforeunload", e=>{
+    if(fbPendingWrites){ e.preventDefault(); e.returnValue = "Des modifications n'ont pas encore été envoyées au serveur."; return e.returnValue; }
   });
 });
 

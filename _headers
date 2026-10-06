@@ -1,0 +1,5 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: same-origin
+  X-Frame-Options: DENY
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; manifest-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; connect-src 'self' https://*.googleapis.com https://www.gstatic.com wss://*.firebaseio.com https://*.firebaseio.com
