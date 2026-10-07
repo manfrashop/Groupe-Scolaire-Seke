@@ -6764,11 +6764,30 @@ const NUM_SERIES = [
   { coll:"paiements", champ:"ref",       prefixe:"REC-",  base:3000,    cpt:"recu",      pad:5, nom:"Reçu" },
   { coll:"paies",     champ:"ref",       prefixe:"PAI-",  base:1000,    cpt:"bulletin",  pad:5, nom:"Bulletin de paie" }
 ];
+/* v25 — numérotation sans collision : chaque appareil a un petit code propre (3 caractères, mémorisé sur
+   l'appareil) ajouté à la fin des NOUVEAUX numéros : REC-03001-K7M. Deux appareils hors-ligne peuvent
+   toujours prendre le même numéro de série, mais jamais le même numéro complet : plus de reçu imprimé
+   dont le numéro change après synchronisation. Les numéros existants ne sont pas modifiés. */
+function __codeAppareil(){
+  const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // sans O/0/I/1 : lisible à la main
+  try{
+    let c = localStorage.getItem("gsps_code_appareil");
+    if(c && /^[A-Z2-9]{3}$/.test(c)) return c;
+    const r = new Uint8Array(3); crypto.getRandomValues(r);
+    c = Array.from(r).map(x=> ALPHA[x % ALPHA.length]).join("");
+    localStorage.setItem("gsps_code_appareil", c);
+    return c;
+  }catch(e){
+    const r = new Uint8Array(3); crypto.getRandomValues(r);
+    window.__codeAppareilSecours = window.__codeAppareilSecours || Array.from(r).map(x=> ALPHA[x % ALPHA.length]).join("");
+    return window.__codeAppareilSecours;
+  }
+}
 function __prochainNumero(s){
   const c = Math.max(DB.compteurs[s.cpt] || 0, __numMax(DB[s.coll], s.champ, s.prefixe, s.base)) + 1;
   DB.compteurs[s.cpt] = c;
   const num = s.base + c - 1;
-  return s.prefixe + (s.pad ? String(num).padStart(s.pad, "0") : String(num));
+  return s.prefixe + (s.pad ? String(num).padStart(s.pad, "0") : String(num)) + "-" + __codeAppareil();
 }
 function prochainMatricule(){ return __prochainNumero(NUM_SERIES[0]); }
 function prochaineRefRecu(){ return __prochainNumero(NUM_SERIES[1]); }
