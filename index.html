@@ -1806,8 +1806,8 @@ function savePaiement(){
 function recuContenuHTML(p, e, niv, solde, copie){
   return `
     <div class="recu-copie" style="background:#fff; color:#111; border-radius:8px; padding:16px 20px; font-family:'Segoe UI',Arial,sans-serif; position:relative;">
-      <div style="position:absolute; top:8px; right:8px; font-size:9px; font-weight:700; letter-spacing:.5px; color:#a8862a; border:1px solid #d4af37; border-radius:4px; padding:2px 7px;">${copie}</div>
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #d4af37; padding-bottom:10px; margin-bottom:12px;">
+      <div style="text-align:right; margin-bottom:6px;"><span style="display:inline-block; font-size:9px; font-weight:700; letter-spacing:.5px; color:#a8862a; border:1px solid #d4af37; border-radius:4px; padding:2px 7px;">${copie}</span></div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #d4af37; padding-bottom:10px; margin-bottom:12px;">
         <div style="display:flex; align-items:flex-start;">
           <img src="${GSPS_LOGO_DATA}" alt="" style="width:38px; height:38px; border-radius:9px; object-fit:cover; margin-right:10px; flex-shrink:0;">
           <div>
@@ -1869,7 +1869,7 @@ function imprimerRecu(){
   const solde = e ? soldeEleve(e) : 0;
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
-  w.document.write(`<html><head><title>Reçu ${esc(p.ref)}</title><style>
+  w.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reçu ${esc(p.ref)}</title><style>
     @page{ size:A4; margin:8mm; }
     *{ box-sizing:border-box; }
     html, body{ margin:0; padding:0; width:100%; }
@@ -2781,7 +2781,7 @@ function imprimerProclamation(){
   if(!zone) return;
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
-  w.document.write(`<html><head><title>Proclamation des résultats</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #proclamationPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
+  w.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Proclamation des résultats</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #proclamationPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
   w.document.close();
   w.focus();
   w.print();
@@ -2792,7 +2792,7 @@ function imprimerBulletin(){
   if(!zone) return;
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
-  w.document.write(`<html><head><title>Bulletin</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #bulletinPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
+  w.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Bulletin</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #bulletinPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
   w.document.close();
   w.focus();
   w.print();
@@ -2946,7 +2946,7 @@ function imprimerLivret(){
   if(!zone) return;
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
-  w.document.write(`<html><head><title>Livret scolaire</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #livretPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
+  w.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Livret scolaire</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #livretPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
   w.document.close();
   w.focus();
   w.print();
@@ -2966,7 +2966,7 @@ function imprimerPanel(btn, titre){
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
   w.document.write(`
-    <html><head><title>${titre}</title>
+    <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${titre}</title>
     <style>
       @page{ size:A4; margin:8mm; }
       *{ box-sizing:border-box; }
@@ -4079,7 +4079,7 @@ function bulletinPaieContenuHTML(b, p, copie){
 const BULLETIN_PAIE_STYLE = `
     <style>
       .bp-page{ background:#fff; color:#0f1b3d; border-radius:14px; overflow:hidden; font-family:'Segoe UI',Arial,sans-serif; max-width:620px; margin:0 auto; border:1px solid #e4e8f5; position:relative; }
-      .bp-copie-tag{ position:absolute; top:10px; right:14px; font-size:9px; font-weight:800; letter-spacing:.5px; color:#12245c; border:1px solid #12245c; border-radius:4px; padding:2px 7px; z-index:2; background:#fff; }
+      .bp-copie-tag{ display:block; width:max-content; margin:8px 14px -6px auto; position:relative; font-size:9px; font-weight:800; letter-spacing:.5px; color:#12245c; border:1px solid #12245c; border-radius:4px; padding:2px 7px; z-index:2; background:#fff; }
       .bp-head{ display:flex; align-items:center; gap:18px; padding:22px 26px; border-bottom:2px solid #12245c; }
       .bp-head-left{ display:flex; align-items:center; gap:12px; flex:1; }
       .bp-logo{ width:52px; height:52px; border-radius:12px; background:#fff url("${GSPS_LOGO_DATA}") center/cover no-repeat; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -4151,7 +4151,7 @@ function imprimerBulletinPaie(){
   const p = DB.personnel.find(x=>x.id===b.personnelId);
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
-  w.document.write(`<html><head><meta charset="UTF-8"><title>Bulletin de paie ${esc(b.ref)}</title>${BULLETIN_PAIE_STYLE}<style>
+  w.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Bulletin de paie ${esc(b.ref)}</title>${BULLETIN_PAIE_STYLE}<style>
     @page{ size:A4; margin:7mm; }
     html,body{ margin:0; padding:0; background:#fff; }
     .bp-print-page{ width:100%; }
@@ -5969,7 +5969,7 @@ function renderHonneur(){
 function honneurFenetre(titre, corps, paysage){
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return null; }
-  w.document.write(`<html><head><title>${esc(titre)}</title><style>
+  w.document.write(`<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(titre)}</title><style>
     @page{ size:A4 ${paysage ? "landscape" : "portrait"}; margin:8mm; }
     *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     body{ font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; margin:0; padding:0; }
