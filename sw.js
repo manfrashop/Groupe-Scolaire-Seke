@@ -7,10 +7,10 @@
      y compris au tout premier écran (pas seulement les données, déjà gérées par Firestore).
 
    Important : à chaque mise à jour déployée de l'application, changez CACHE_NAME
-   (ex. "gsps-cache-v25") pour que les anciens fichiers mis en cache soient purgés et
+   (ex. "gsps-cache-v26") pour que les anciens fichiers mis en cache soient purgés et
    remplacés par les nouveaux dès la prochaine visite en ligne. */
 
-const CACHE_NAME = "gsps-cache-v25";
+const CACHE_NAME = "gsps-cache-v26";
 // Alias fixe sous lequel on garde toujours une copie de la dernière page HTML chargée,
 // quel que soit son nom exact ou son chemin sur l'hébergement — pour pouvoir la retrouver
 // hors-ligne même si l'URL de navigation diffère légèrement (avec ou sans paramètres, etc.).
