@@ -964,8 +964,8 @@ function renderDashboard(){
   const busActifs = eleves.filter(e=>e.bus);
 
   const aujourdHui = todayISO();
-  const recettesJour = DB.paiements.filter(p=>p.date===aujourdHui).reduce((s,p)=>s+p.montant,0);
-  const recettesMois = DB.paiements.filter(p=>p.date && p.date.startsWith(moisISO())).reduce((s,p)=>s+p.montant,0);
+  const recettesJour = DB.paiements.filter(p=>paiementActif(p) && p.date===aujourdHui).reduce((s,p)=>s+p.montant,0);
+  const recettesMois = DB.paiements.filter(p=>paiementActif(p) && p.date && p.date.startsWith(moisISO())).reduce((s,p)=>s+p.montant,0);
 
   // répartition par cycle
   const cycles = ["Maternelle","Primaire","Collège","Lycée"];
@@ -1010,7 +1010,8 @@ function renderDashboard(){
           <thead><tr><th>Reçu</th><th>Élève</th><th>Type</th><th>Montant</th><th>Mode</th></tr></thead>
           <tbody>${DB.paiements.slice(0,7).map(p=>{
             const e = eleveById(p.eleveId);
-            return `<tr><td>${esc(p.ref)}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${esc(p.type)}</td><td>${fmtGNF(p.montant)}</td><td><span class="badge ${p.mode==='Orange Money'?'orange':'green'}">${esc(p.mode)}</span></td></tr>`;
+            const ann = !paiementActif(p), st = ann ? ' style="text-decoration:line-through;color:var(--text-mute)"' : "";
+            return `<tr><td${st}>${esc(p.ref)}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${esc(p.type)}</td><td${st}>${fmtGNF(p.montant)}</td><td>${ann ? '<span class="badge grey">Annulé</span>' : `<span class="badge ${p.mode==='Orange Money'?'orange':'green'}">${esc(p.mode)}</span>`}</td></tr>`;
           }).join("")}</tbody>
         </table></div>
       </div>
@@ -1233,7 +1234,7 @@ function openEleveDetail(id){
       <button class="btn btn-primary btn-sm" style="margin-bottom:14px" onclick="closeModal(); openPaiementForm('${id}')">+ Enregistrer un paiement</button>
       <div class="table-wrap"><table>
         <thead><tr><th>Reçu</th><th>Type</th><th>Date</th><th>Montant</th><th>Mode</th></tr></thead>
-        <tbody>${paiementsEleve.length? paiementsEleve.map(p=>`<tr><td>${esc(p.ref)}</td><td>${esc(p.type)}</td><td>${esc(p.date)}</td><td>${fmtGNF(p.montant)}</td><td>${esc(p.mode)}</td></tr>`).join("") : '<tr><td colspan="5" style="text-align:center;color:var(--text-mute)">Aucun paiement enregistré</td></tr>'}</tbody>
+        <tbody>${paiementsEleve.length? paiementsEleve.map(p=>`<tr${paiementActif(p) ? "" : ' style="text-decoration:line-through;color:var(--text-mute)"'}><td>${esc(p.ref)}</td><td>${esc(p.type)}</td><td>${esc(p.date)}</td><td>${fmtGNF(p.montant)}</td><td>${esc(p.mode)}${paiementActif(p) ? "" : " (annulé)"}</td></tr>`).join("") : '<tr><td colspan="5" style="text-align:center;color:var(--text-mute)">Aucun paiement enregistré</td></tr>'}</tbody>
       </table></div>
     </div>
   `, "Fiche élève");
@@ -1373,7 +1374,7 @@ let encaissementsFiltresAvancesOuvert = false;
 
 /* ---- Encaissements ---- */
 function renderFinEncaissements(c){
-  const totalPaye = DB.paiements.reduce((s,p)=>s+p.montant,0);
+  const totalPaye = DB.paiements.filter(paiementActif).reduce((s,p)=>s+p.montant,0);
   c.innerHTML = `
     <div class="actions-row">
       <input class="search-box" placeholder="Rechercher par élève ou n° de reçu..." value="${esc(encaissementsFilters.search)}" oninput="encaissementsFilters.search=this.value; renderFinEncaissementsList();">
@@ -1403,9 +1404,9 @@ function renderFinEncaissements(c){
     </div>
     <div class="kpi-grid">
       <div class="kpi-card"><div class="lbl">Total encaissé (année)</div><div class="val gold">${fmtGNF(totalPaye)}</div></div>
-      <div class="kpi-card"><div class="lbl">Nombre de reçus</div><div class="val">${fmtNum(DB.paiements.length)}</div></div>
-      <div class="kpi-card"><div class="lbl">Espèces</div><div class="val green">${fmtGNF(DB.paiements.filter(p=>p.mode==='Espèces').reduce((s,p)=>s+p.montant,0))}</div></div>
-      <div class="kpi-card"><div class="lbl">Orange Money</div><div class="val" style="color:var(--orange)">${fmtGNF(DB.paiements.filter(p=>p.mode==='Orange Money').reduce((s,p)=>s+p.montant,0))}</div></div>
+      <div class="kpi-card"><div class="lbl">Nombre de reçus</div><div class="val">${fmtNum(DB.paiements.filter(paiementActif).length)}</div></div>
+      <div class="kpi-card"><div class="lbl">Espèces</div><div class="val green">${fmtGNF(DB.paiements.filter(p=>paiementActif(p) && p.mode==='Espèces').reduce((s,p)=>s+p.montant,0))}</div></div>
+      <div class="kpi-card"><div class="lbl">Orange Money</div><div class="val" style="color:var(--orange)">${fmtGNF(DB.paiements.filter(p=>paiementActif(p) && p.mode==='Orange Money').reduce((s,p)=>s+p.montant,0))}</div></div>
     </div>
     <div class="panel">
       <div class="panel-head"><div><h3>Historique des encaissements</h3><span class="hint" id="encCount"></span></div>${btnImprimer('Historique des encaissements')}</div>
@@ -1430,7 +1431,11 @@ function renderFinEncaissementsList(){
     <thead><tr><th>Reçu</th><th>Élève</th><th>Type</th><th>Date</th><th>Montant</th><th>Mode</th><th></th></tr></thead>
     <tbody>${list.length===0?`<tr><td colspan="7" style="text-align:center;color:var(--text-mute)">Aucun paiement ne correspond aux critères.</td></tr>`:list.map(p=>{
       const e = eleveById(p.eleveId);
-      return `<tr><td>${esc(p.ref)}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${esc(p.type)}</td><td>${esc(p.date)}</td><td>${fmtGNF(p.montant)}</td><td><span class="badge ${p.mode==='Orange Money'?'orange':'green'}">${esc(p.mode)}</span></td><td><button class="btn btn-sm" onclick="afficherRecu('${esc(p.ref)}')">Voir reçu</button></td></tr>`;
+      const ann = !paiementActif(p), st = ann ? ' style="text-decoration:line-through;color:var(--text-mute)"' : "";
+      const act = ann
+        ? (SESSION && SESSION.profile === "direction" ? ` <button class="btn btn-sm" onclick="retablirPaiement('${esc(p.ref)}')">Rétablir</button>` : "")
+        : (peutGererCaisse() ? ` <button class="btn btn-sm" onclick="annulerPaiement('${esc(p.ref)}')">Annuler</button>` : "");
+      return `<tr><td${st}>${esc(p.ref)}</td><td>${e?eleveNomComplet(e):"—"}</td><td>${esc(p.type)}${ann ? `<div class="hint" style="text-decoration:none">Annulé${p.annulePar ? " par " + esc(p.annulePar) : ""} : ${esc(p.motifAnnulation||"—")}</div>` : ""}</td><td${st}>${esc(p.date)}</td><td${st}>${fmtGNF(p.montant)}</td><td>${ann ? '<span class="badge grey">Annulé</span>' : `<span class="badge ${p.mode==='Orange Money'?'orange':'green'}">${esc(p.mode)}</span>`}</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="afficherRecu('${esc(p.ref)}')">Voir reçu</button>${act}</td></tr>`;
     }).join("")}</tbody>
   </table>`;
 }
@@ -1497,21 +1502,60 @@ function sommeMontants(l){ return l.reduce((s,x)=> s + (x.montant||0), 0); }
 function soldeEspecesAvant(date){
   const ini = caisseInitiale();
   const dansPeriode = x => x.date && x.date >= (ini.date || "") && x.date < date;
-  const e = sommeMontants(DB.paiements.filter(p=> p.mode === "Espèces" && dansPeriode(p)));
+  const e = sommeMontants(DB.paiements.filter(p=> paiementActif(p) && p.mode === "Espèces" && dansPeriode(p)));
   const s = sommeMontants(DB.depenses.filter(d=> depenseActive(d) && modeDepense(d) === "Espèces" && dansPeriode(d)));
-  return ini.montant + e - s;
+  const sal = DB.paies.filter(b=> paieActive(b) && (b.mode||"Espèces") === "Espèces" && dansPeriode(b)).reduce((t,b)=> t + (b.net||0), 0);
+  return ini.montant + e - s - sal;
 }
 function mouvementsDuJour(date){
-  const entrees = DB.paiements.filter(p=> p.date === date);
+  const entrees = DB.paiements.filter(p=> p.date === date && paiementActif(p));
+  const annulees = DB.paiements.filter(p=> p.date === date && !paiementActif(p));
+  const salaires = DB.paies.filter(b=> b.date === date && paieActive(b));
+  const netSal = l => l.reduce((t,b)=> t + (b.net||0), 0);
   const sorties = DB.depenses.filter(d=> d.date === date && depenseActive(d));
-  return { entrees, sorties,
+  return { entrees, sorties, annulees, salaires,
     eEsp: sommeMontants(entrees.filter(p=>p.mode === "Espèces")), eOM: sommeMontants(entrees.filter(p=>p.mode === "Orange Money")),
-    sEsp: sommeMontants(sorties.filter(d=>modeDepense(d) === "Espèces")), sOM: sommeMontants(sorties.filter(d=>modeDepense(d) === "Orange Money")) };
+    sEsp: sommeMontants(sorties.filter(d=>modeDepense(d) === "Espèces")) + netSal(salaires.filter(b=>(b.mode||"Espèces") === "Espèces")),
+    sOM: sommeMontants(sorties.filter(d=>modeDepense(d) === "Orange Money")) + netSal(salaires.filter(b=>b.mode === "Orange Money")) };
 }
 /* Si la journée est déjà clôturée, demande confirmation avant de toucher à ses mouvements */
 async function verifierJourOuvert(date){
   if(!date || !clotureDe(date)) return true;
   return await confirmer("La caisse du " + date + " est déjà clôturée.\nModifier quand même un mouvement de cette journée ? Pensez à la clôturer de nouveau ensuite.", { oui:"Continuer", danger:false });
+}
+
+function paiementActif(p){ return !!p && p.statut !== "annule"; }
+/* Annulation d'un reçu : jamais supprimé. Le paiement reste dans le registre (statut « annule », motif, auteur),
+   n'est plus compté dans les recettes ni dans la caisse, et la part de scolarité payée par l'élève est ramenée en arrière. */
+async function annulerPaiement(ref){
+  if(!peutGererCaisse()){ toast("Seules la Direction et la Comptabilité peuvent annuler un reçu.", true); return; }
+  const p = DB.paiements.find(x=>x.ref===ref);
+  if(!p || !paiementActif(p)) return;
+  if(!await verifierJourOuvert(p.date)) return;
+  const e = eleveById(p.eleveId);
+  const motif = await saisir("Annuler le reçu " + p.ref + " (" + fmtGNF(p.montant) + (e ? " — " + e.prenom + " " + e.nom : "") + ").\nMotif de l'annulation :", "", { inputmode:"text", oui:"Annuler le reçu", danger:true });
+  if(motif === null) return;
+  if(!motif.trim()){ toast("Le motif est obligatoire.", true); return; }
+  p.statut = "annule"; p.motifAnnulation = motif.trim().slice(0,160); p.annuleLe = Date.now(); p.annulePar = auteurCourant();
+  if(e && String(p.type||"").startsWith("Scolarité")) e.montantScolaritePaye = Math.max(0, (e.montantScolaritePaye||0) - p.montant);
+  saveDB();
+  closeModal();
+  toast("Reçu " + p.ref + " annulé : il n'est plus compté.");
+  if(currentPage === "finances") renderFinTab();
+}
+async function retablirPaiement(ref){
+  if(!SESSION || SESSION.profile !== "direction"){ toast("Seule la Direction peut rétablir un reçu annulé.", true); return; }
+  const p = DB.paiements.find(x=>x.ref===ref);
+  if(!p || paiementActif(p)) return;
+  if(!await verifierJourOuvert(p.date)) return;
+  if(!await confirmer("Rétablir le reçu " + p.ref + " (" + fmtGNF(p.montant) + ") ?", { oui:"Rétablir", danger:false })) return;
+  const e = eleveById(p.eleveId);
+  // Valeurs vides (et non delete) : l'écriture Firestore fusionne les enregistrements.
+  p.statut = "valide"; p.motifAnnulation = ""; p.annuleLe = 0; p.annulePar = "";
+  if(e && String(p.type||"").startsWith("Scolarité")) e.montantScolaritePaye = Math.min(e.montantScolariteDue, (e.montantScolaritePaye||0) + p.montant);
+  saveDB();
+  toast("Reçu " + p.ref + " rétabli.");
+  if(currentPage === "finances") renderFinTab();
 }
 
 /* ---- Journal de caisse ---- */
@@ -1526,6 +1570,13 @@ function renderFinCaisse(c){
   m.entrees.forEach(p=>{
     const e = eleveById(p.eleveId);
     lignes.push({ ts:p.ts||0, html:`<tr><td>${heureDe(p.ts)}</td><td><span class="badge green">Encaissement</span></td><td>${esc(p.ref)} — ${esc(p.type)}${e ? " — " + esc((e.prenom||"") + " " + (e.nom||"")) : ""}</td><td>${esc(p.mode)}</td><td style="color:var(--green)">${fmtGNF(p.montant)}</td><td>—</td><td>${esc(p.par||"")}</td></tr>` });
+  });
+  m.salaires.forEach(b=>{
+    const pers = DB.personnel.find(x=>x.id===b.personnelId);
+    lignes.push({ ts:b.ts||0, html:`<tr><td>${heureDe(b.ts)}</td><td><span class="badge orange">Salaire</span></td><td>${esc(b.ref)} — ${esc(b.mois)}${pers ? " — " + esc((pers.prenom||"") + " " + (pers.nom||"")) : ""}</td><td>${esc(b.mode||"Espèces")}</td><td>—</td><td style="color:var(--red)">${fmtGNF(b.net)}</td><td>${esc(b.par||"")}</td></tr>` });
+  });
+  m.annulees.forEach(p=>{
+    lignes.push({ ts:p.ts||0, html:`<tr style="color:var(--text-mute)"><td>${heureDe(p.ts)}</td><td><span class="badge grey">Reçu annulé</span></td><td><span style="text-decoration:line-through">${esc(p.ref)} — ${esc(p.type)} — ${fmtGNF(p.montant)}</span><div class="hint">Annulé${p.annulePar ? " par " + esc(p.annulePar) : ""} : ${esc(p.motifAnnulation||"—")}</div></td><td>${esc(p.mode)}</td><td>—</td><td>—</td><td>${esc(p.par||"")}</td></tr>` });
   });
   m.sorties.forEach(d=>{
     lignes.push({ ts:d.ts||0, html:`<tr><td>${heureDe(d.ts)}</td><td><span class="badge red">Dépense</span></td><td>${esc(d.categorie)} — ${esc(d.libelle)}</td><td>${esc(modeDepense(d))}</td><td>—</td><td style="color:var(--red)">${fmtGNF(d.montant)}</td><td>${esc(d.par||"")}</td></tr>` });
@@ -1704,6 +1755,7 @@ function openDepenseForm(id){
       <div class="field"><label>Montant (GNF)</label><input type="number" id="d_montant" placeholder="0" value="${esc(v.montant)}"></div>
       <div class="field"><label>Mode de paiement</label><select id="d_mode"><option ${modeDepense(v)==="Espèces"?"selected":""}>Espèces</option><option ${modeDepense(v)==="Orange Money"?"selected":""}>Orange Money</option></select></div>
       <div class="field field-span2"><label>Pièce justificative (n° facture, reçu…) — facultatif</label><input id="d_just" value="${esc(v.justificatif||"")}"></div>
+      <p class="hint field-span2" style="margin:0">Les salaires du personnel se paient depuis le module Paie : ils sont déjà comptés en sortie de caisse. Ne les saisissez pas ici pour éviter un doublon.</p>
     </div>
   `, ex ? "Modifier la dépense" : "Nouvelle dépense");
   const modal = document.getElementById("dynModal");
@@ -2015,7 +2067,7 @@ function savePaiement(){
   const mode = document.getElementById("p_mode").value;
   const date = document.getElementById("p_date").value;
   const ref = prochaineRefRecu();
-  DB.paiements.unshift({ id:uid("PAY"), ref, eleveId, type, montant, mode, date, ts:Date.now(), par:auteurCourant() });
+  DB.paiements.unshift({ id:uid("PAY"), ref, eleveId, type, montant, mode, date, ts:Date.now(), par:auteurCourant(), statut:"valide" });
   if(type.startsWith("Scolarité")){
     const e = eleveById(eleveId);
     e.montantScolaritePaye = Math.min(e.montantScolariteDue, e.montantScolaritePaye + montant);
@@ -2044,6 +2096,7 @@ function recuContenuHTML(p, e, niv, solde, copie){
         <div style="text-align:right;">
           <div style="font-weight:700; font-size:13px; color:#a8862a;">REÇU DE PAIEMENT</div>
           <div style="font-size:11px; color:#555;">N° ${esc(p.ref)}</div>
+          ${p.statut === "annule" ? '<div style="font-weight:800; font-size:12px; color:#c22540; border:1.5px solid #c22540; border-radius:4px; display:inline-block; padding:1px 8px; margin-top:3px;">REÇU ANNULÉ</div>' : ""}
           <div style="font-size:11px; color:#555;">${esc(p.date)}</div>
         </div>
       </div>
@@ -3285,7 +3338,7 @@ function openCoursForm(){
       <div class="field"><label>Créneau horaire</label><input id="c_creneau" placeholder="Ex : 08:00–09:00"></div>
       <div class="field"><label>Salle</label><input id="c_salle" placeholder="Ex : Salle 3"></div>
       <div class="field field-span2"><label>Matière</label>
-        <select id="c_matiere">${matieres.map(m=>`<option>${m}</option>`).join("")}</select>
+        <select id="c_matiere">${matieres.map(m=>`<option>${esc(m)}</option>`).join("")}</select>
       </div>
     </div>
   `, `Ajouter un cours — ${niv.nom}`);
@@ -3744,8 +3797,8 @@ function renderBiblioCatalogue(c){
       <div class="table-wrap"><table>
         <thead><tr><th>Titre</th><th>Auteur</th><th>Catégorie</th><th>Exemplaires</th><th>Disponibles</th><th></th></tr></thead>
         <tbody>${DB.livres.map(l=>`
-          <tr><td>${esc(l.titre)}</td><td>${esc(l.auteur)}</td><td>${esc(l.categorie)}</td><td>${l.exemplaires}</td>
-          <td><span class="badge ${l.disponibles>0?'green':'red'}">${l.disponibles}</span></td>
+          <tr><td>${esc(l.titre)}</td><td>${esc(l.auteur)}</td><td>${esc(l.categorie)}</td><td>${esc(l.exemplaires)}</td>
+          <td><span class="badge ${l.disponibles>0?'green':'red'}">${esc(l.disponibles)}</span></td>
           <td><button class="btn btn-sm" ${l.disponibles<=0?'disabled style="opacity:.4"':''} onclick="openEmpruntForm('${l.id}')">Prêter</button></td></tr>
         `).join("")}</tbody>
       </table></div>
@@ -3834,8 +3887,8 @@ function renderBiblioEmprunts(c){
           const livre = DB.livres.find(l=>l.id===e.livreId);
           const el = eleveById(e.eleveId);
           const enRetard = e.dateRetourPrevue < todayISO();
-          return `<tr><td>${livre?livre.titre:"—"}</td><td>${el?eleveNomComplet(el):"—"}</td><td>${e.dateEmprunt}</td>
-            <td>${e.dateRetourPrevue} ${enRetard?'<span class="badge red">En retard</span>':''}</td>
+          return `<tr><td>${livre?esc(livre.titre):"—"}</td><td>${el?eleveNomComplet(el):"—"}</td><td>${esc(e.dateEmprunt)}</td>
+            <td>${esc(e.dateRetourPrevue)} ${enRetard?'<span class="badge red">En retard</span>':''}</td>
             <td><button class="btn btn-sm btn-primary" onclick="rendreLivre('${e.id}')">Marquer rendu</button></td></tr>`;
         }).join("")}</tbody>
       </table></div>
@@ -4087,14 +4140,15 @@ function moisLabel(ym){
   return `${noms[parseInt(m,10)-1]} ${y}`;
 }
 
+function paieActive(b){ return !!b && b.statut !== "annule"; }
 function bulletinDuMois(personnelId, mois){
-  return DB.paies.find(p=>p.personnelId===personnelId && p.mois===mois);
+  return DB.paies.find(p=>paieActive(p) && p.personnelId===personnelId && p.mois===mois);
 }
 
 function renderPaie(){
   const el = document.getElementById("pageContent");
   const personnelActif = DB.personnel.filter(p=>p.statut==="actif");
-  const bulletinsMois = DB.paies.filter(p=>p.mois===paieMois);
+  const bulletinsMois = DB.paies.filter(p=>paieActive(p) && p.mois===paieMois);
   const masseSalariale = bulletinsMois.reduce((s,p)=>s+p.net,0);
   const masseBrutePotentielle = personnelActif.reduce((s,p)=>s+p.salaireBase,0);
   const nbPayes = bulletinsMois.length;
@@ -4160,10 +4214,27 @@ function renderPaieList(){
       <td>${bulletin?'<span class="badge green">Payé</span>':(p.statut==='congé'?'<span class="badge grey">En congé</span>':'<span class="badge orange">En attente</span>')}</td>
       <td>${bulletin?fmtGNF(bulletin.net):'—'}</td>
       <td>${bulletin
-        ? `<button class="btn btn-sm" onclick="afficherBulletinPaie('${bulletin.id}')">Voir bulletin</button>`
+        ? `<button class="btn btn-sm" onclick="afficherBulletinPaie('${bulletin.id}')">Voir bulletin</button>${peutGererCaisse() ? ` <button class="btn btn-sm" onclick="annulerBulletin('${bulletin.id}')">Annuler</button>` : ""}`
         : `<button class="btn btn-sm btn-primary" onclick="openBulletinForm('${p.id}')">Établir la paie</button>`}</td></tr>
     `).join("")}</tbody>
   </table>`;
+}
+
+/* Annulation d'un bulletin : jamais supprimé. Il n'est plus compté (caisse, masse salariale) et la paie du mois peut être refaite. */
+async function annulerBulletin(id){
+  if(!peutGererCaisse()){ toast("Seules la Direction et la Comptabilité peuvent annuler un bulletin.", true); return; }
+  const b = DB.paies.find(x=>x.id===id);
+  if(!b || !paieActive(b)) return;
+  if(!await verifierJourOuvert(b.date)) return;
+  const pers = DB.personnel.find(x=>x.id===b.personnelId);
+  const motif = await saisir("Annuler le bulletin " + b.ref + (pers ? " (" + pers.prenom + " " + pers.nom + ")" : "") + " de " + fmtGNF(b.net) + ".\nMotif de l'annulation :", "", { inputmode:"text", oui:"Annuler le bulletin", danger:true });
+  if(motif === null) return;
+  if(!motif.trim()){ toast("Le motif est obligatoire.", true); return; }
+  b.statut = "annule"; b.motifAnnulation = motif.trim().slice(0,160); b.annuleLe = Date.now(); b.annulePar = auteurCourant();
+  saveDB();
+  closeModal();
+  toast("Bulletin " + b.ref + " annulé : le salaire n'est plus compté en caisse.");
+  renderPaie();
 }
 
 function openBulletinForm(personnelId){
@@ -4177,6 +4248,7 @@ function openBulletinForm(personnelId){
       <div class="field"><label>Prime (GNF)</label><input type="number" id="bp_prime" value="0" placeholder="0"></div>
       <div class="field"><label>Avance / retenue (GNF)</label><input type="number" id="bp_avance" value="0" placeholder="0"></div>
       <div class="field field-span2"><label>Motif de la prime / retenue (optionnel)</label><input id="bp_motif" placeholder="Ex : Prime d'assiduité, avance sur salaire..."></div>
+      <div class="field field-span2"><label>Mode de paiement du salaire (sortie de caisse)</label><select id="bp_mode"><option>Espèces</option><option>Orange Money</option></select></div>
     </div>
     <div id="bp_apercu" style="margin-top:14px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:13px;display:flex;justify-content:space-between;font-weight:700">
       <span>Net à payer</span><span id="bp_net" style="color:var(--gold-dim)">${fmtGNF(p.salaireBase)}</span>
@@ -4211,7 +4283,8 @@ function saveBulletin(personnelId){
   DB.paies.unshift({
     id: uid("PAI"), ref, personnelId, mois: paieMois,
     base, prime, avance, motif: motif || "—", net,
-    date: todayISO(),
+    date: todayISO(), mode: (document.getElementById("bp_mode") ? document.getElementById("bp_mode").value : "Espèces"),
+    ts: Date.now(), par: auteurCourant(), statut: "valide",
   });
   saveDB();
   closeModal();
@@ -4408,7 +4481,7 @@ async function genererTousBulletins(){
   if(!await confirmer(`Générer un bulletin au salaire de base (sans prime ni avance) pour ${personnelActif.length} employé(s) qui n'ont pas encore de paie ce mois-ci ?`)) return;
   personnelActif.forEach(p=>{
     const ref = prochaineRefBulletin();
-    DB.paies.unshift({ id:uid("PAI"), ref, personnelId:p.id, mois:paieMois, base:p.salaireBase, prime:0, avance:0, motif:"—", net:p.salaireBase, date:todayISO() });
+    DB.paies.unshift({ id:uid("PAI"), ref, personnelId:p.id, mois:paieMois, base:p.salaireBase, prime:0, avance:0, motif:"—", net:p.salaireBase, date:todayISO(), mode:"Espèces", ts:Date.now(), par:auteurCourant(), statut:"valide" });
   });
   saveDB();
   toast(`${personnelActif.length} bulletin(s) généré(s).`);
@@ -4934,10 +5007,10 @@ function exportCSV(kind){
     });
     filename = "eleves_GSPS.csv";
   }else if(kind==="paiements"){
-    rows = [["Reçu","Élève","Type","Date","Montant","Mode"]];
+    rows = [["Reçu","Élève","Type","Date","Heure","Montant","Mode","Statut","Motif annulation","Saisi par"]];
     DB.paiements.forEach(p=>{
       const e = eleveById(p.eleveId);
-      rows.push([p.ref, e?eleveNomComplet(e):"", p.type, p.date, p.montant, p.mode]);
+      rows.push([p.ref, e?eleveNomComplet(e):"", p.type, p.date, heureDe(p.ts), p.montant, p.mode, paiementActif(p)?"Valide":"Annulé", p.motifAnnulation||"", p.par||""]);
     });
     filename = "paiements_GSPS.csv";
   }else if(kind==="transport"){
@@ -4953,10 +5026,10 @@ function exportCSV(kind){
     });
     filename = "personnel_GSPS.csv";
   }else if(kind==="paie"){
-    rows = [["Bulletin","Membre du personnel","Fonction","Mois","Salaire de base","Prime","Avance","Motif","Net à payer","Date"]];
+    rows = [["Bulletin","Membre du personnel","Fonction","Mois","Salaire de base","Prime","Avance","Motif","Net à payer","Date","Mode","Statut","Motif annulation"]];
     DB.paies.forEach(b=>{
       const p = DB.personnel.find(x=>x.id===b.personnelId);
-      rows.push([b.ref, p?`${p.prenom} ${p.nom}`:"", p?p.fonction:"", b.mois, b.base, b.prime, b.avance, b.motif, b.net, b.date]);
+      rows.push([b.ref, p?`${p.prenom} ${p.nom}`:"", p?p.fonction:"", b.mois, b.base, b.prime, b.avance, b.motif, b.net, b.date, b.mode||"Espèces", paieActive(b)?"Valide":"Annulé", b.motifAnnulation||""]);
     });
     filename = "paie_GSPS.csv";
   }else if(kind==="notes"){
