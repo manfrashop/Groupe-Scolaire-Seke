@@ -965,7 +965,7 @@ function renderDashboard(){
 
   const aujourdHui = todayISO();
   const recettesJour = DB.paiements.filter(p=>p.date===aujourdHui).reduce((s,p)=>s+p.montant,0);
-  const recettesMois = DB.paiements.filter(p=>p.date && p.date.startsWith("2026-09")).reduce((s,p)=>s+p.montant,0);
+  const recettesMois = DB.paiements.filter(p=>p.date && p.date.startsWith(moisISO())).reduce((s,p)=>s+p.montant,0);
 
   // répartition par cycle
   const cycles = ["Maternelle","Primaire","Collège","Lycée"];
@@ -994,7 +994,7 @@ function renderDashboard(){
 
     <div class="grid-2">
       <div class="panel">
-        <div class="panel-head"><h3>Recettes — Septembre 2026</h3><span class="hint">Toutes catégories confondues</span></div>
+        <div class="panel-head"><h3>Recettes — ${libMois(moisISO())}</h3><span class="hint">Toutes catégories confondues</span></div>
         <div style="position:relative; height:220px;"><canvas id="chartRecettes"></canvas></div>
       </div>
       <div class="panel">
@@ -1029,7 +1029,7 @@ function renderDashboard(){
       <div class="panel-head"><h3>Résumé mensuel</h3></div>
       <div class="kpi-grid" style="margin-bottom:0">
         <div class="kpi-card"><div class="lbl">Recettes du mois</div><div class="val gold">${fmtGNF(recettesMois)}</div></div>
-        <div class="kpi-card"><div class="lbl">Dépenses du mois</div><div class="val red">${fmtGNF(DB.depenses.reduce((s,d)=>s+d.montant,0))}</div></div>
+        <div class="kpi-card"><div class="lbl">Dépenses du mois</div><div class="val red">${fmtGNF(DB.depenses.filter(d=>depenseActive(d) && d.date && d.date.startsWith(moisISO())).reduce((s,d)=>s+d.montant,0))}</div></div>
         <div class="kpi-card"><div class="lbl">Personnel actif</div><div class="val">${DB.personnel.filter(p=>p.statut==='actif').length}</div></div>
         <div class="kpi-card"><div class="lbl">Année scolaire</div><div class="val" style="font-size:18px">${ANNEE_SCOLAIRE}</div></div>
       </div>
@@ -1461,75 +1461,300 @@ function renderFinImpayes(c){
   `;
 }
 
-/* ---- Caisse ---- */
+/* ---- Caisse & dépenses (v26) ----
+   Principes :
+   - Une dépense n'est jamais supprimée : elle est ANNULÉE (statut + motif + auteur), ce qui garde la trace comptable.
+   - Une dépense peut être modifiée ; l'auteur et la date de modification sont conservés.
+   - Chaque mouvement porte un mode (Espèces / Orange Money), une heure (ts) et un auteur (par).
+   - Le solde de caisse est un solde ESPÈCES cumulé : ouverture + entrées espèces − sorties espèces.
+   - La clôture d'un jour (comptage physique + écart) est stockée dans DB.compteurs.clotures[date]
+     (collection « compteurs » déjà autorisée pour tous les profils : aucune modification des règles Firestore). */
+const DEP_CATS = ["Fournitures","Maintenance","Carburant bus","Électricité","Salaires","Divers"];
+function moisISO(d){ return (d || todayISO()).slice(0,7); }
+function libMois(ym){
+  try{
+    const t = new Date(ym + "-01T12:00:00").toLocaleDateString("fr-FR", { month:"long", year:"numeric" });
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }catch(e){ return ym; }
+}
+function heureDe(ts){
+  if(!ts) return "—";
+  const d = new Date(ts);
+  return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+}
+function depenseActive(d){ return !!d && d.statut !== "annule"; }
+function modeDepense(d){ return d.mode || "Espèces"; }
+function auteurCourant(){ return (SESSION && SESSION.name) ? String(SESSION.name).slice(0,80) : ""; }
+function peutGererCaisse(){ return !!SESSION && (SESSION.profile === "direction" || SESSION.profile === "comptabilite"); }
+function clotureDe(date){ return (DB.compteurs && DB.compteurs.clotures && DB.compteurs.clotures[date]) || null; }
+function caisseInitiale(){
+  const c = DB.compteurs && DB.compteurs.caisseInitiale;
+  return (c && typeof c.montant === "number") ? c : { montant:0, date:"" };
+}
+function sommeMontants(l){ return l.reduce((s,x)=> s + (x.montant||0), 0); }
+
+/* Solde espèces au début de la journée `date` (hors mouvements de ce jour) */
+function soldeEspecesAvant(date){
+  const ini = caisseInitiale();
+  const dansPeriode = x => x.date && x.date >= (ini.date || "") && x.date < date;
+  const e = sommeMontants(DB.paiements.filter(p=> p.mode === "Espèces" && dansPeriode(p)));
+  const s = sommeMontants(DB.depenses.filter(d=> depenseActive(d) && modeDepense(d) === "Espèces" && dansPeriode(d)));
+  return ini.montant + e - s;
+}
+function mouvementsDuJour(date){
+  const entrees = DB.paiements.filter(p=> p.date === date);
+  const sorties = DB.depenses.filter(d=> d.date === date && depenseActive(d));
+  return { entrees, sorties,
+    eEsp: sommeMontants(entrees.filter(p=>p.mode === "Espèces")), eOM: sommeMontants(entrees.filter(p=>p.mode === "Orange Money")),
+    sEsp: sommeMontants(sorties.filter(d=>modeDepense(d) === "Espèces")), sOM: sommeMontants(sorties.filter(d=>modeDepense(d) === "Orange Money")) };
+}
+/* Si la journée est déjà clôturée, demande confirmation avant de toucher à ses mouvements */
+async function verifierJourOuvert(date){
+  if(!date || !clotureDe(date)) return true;
+  return await confirmer("La caisse du " + date + " est déjà clôturée.\nModifier quand même un mouvement de cette journée ? Pensez à la clôturer de nouveau ensuite.", { oui:"Continuer", danger:false });
+}
+
+/* ---- Journal de caisse ---- */
+let caisseDate = null;
 function renderFinCaisse(c){
-  const today = todayISO();
-  const entrees = DB.paiements.filter(p=>p.date===today);
-  const sorties = DB.depenses.filter(d=>d.date===today);
-  const totalE = entrees.reduce((s,p)=>s+p.montant,0);
-  const totalS = sorties.reduce((s,d)=>s+d.montant,0);
+  const jour = caisseDate || todayISO();
+  const m = mouvementsDuJour(jour);
+  const ouverture = soldeEspecesAvant(jour);
+  const theorique = ouverture + m.eEsp - m.sEsp;
+  const clo = clotureDe(jour);
+  const lignes = [];
+  m.entrees.forEach(p=>{
+    const e = eleveById(p.eleveId);
+    lignes.push({ ts:p.ts||0, html:`<tr><td>${heureDe(p.ts)}</td><td><span class="badge green">Encaissement</span></td><td>${esc(p.ref)} — ${esc(p.type)}${e ? " — " + esc((e.prenom||"") + " " + (e.nom||"")) : ""}</td><td>${esc(p.mode)}</td><td style="color:var(--green)">${fmtGNF(p.montant)}</td><td>—</td><td>${esc(p.par||"")}</td></tr>` });
+  });
+  m.sorties.forEach(d=>{
+    lignes.push({ ts:d.ts||0, html:`<tr><td>${heureDe(d.ts)}</td><td><span class="badge red">Dépense</span></td><td>${esc(d.categorie)} — ${esc(d.libelle)}</td><td>${esc(modeDepense(d))}</td><td>—</td><td style="color:var(--red)">${fmtGNF(d.montant)}</td><td>${esc(d.par||"")}</td></tr>` });
+  });
+  lignes.sort((a,b)=> (a.ts||Infinity) - (b.ts||Infinity));
+  const ini = caisseInitiale();
+  const clotures = Object.keys((DB.compteurs && DB.compteurs.clotures) || {}).sort().reverse().slice(0, 10);
+  let blocClo;
+  if(clo){
+    const modifiee = clo.theorique !== theorique;
+    blocClo = `<div class="kpi-grid">
+        <div class="kpi-card"><div class="lbl">Espèces comptées</div><div class="val">${fmtGNF(clo.compte)}</div></div>
+        <div class="kpi-card"><div class="lbl">Écart à la clôture</div><div class="val ${clo.ecart === 0 ? "green" : "red"}">${clo.ecart > 0 ? "+" : ""}${fmtGNF(clo.ecart)}</div></div>
+      </div>
+      <p class="hint" style="margin:0 0 10px">Clôturée le ${esc(new Date(clo.ts).toLocaleString("fr-FR"))}${clo.par ? " par " + esc(clo.par) : ""}.${modifiee ? ' <strong style="color:var(--red)">⚠ Des mouvements ont changé depuis la clôture (théorique à la clôture : ' + fmtGNF(clo.theorique) + ").</strong>" : ""}</p>`;
+  } else {
+    blocClo = `<p class="hint" style="margin:0 0 10px">Journée non clôturée.</p>`;
+  }
   c.innerHTML = `
+    <div class="actions-row">
+      <div class="field" style="margin:0"><label>Journée</label><input type="date" value="${esc(jour)}" onchange="caisseDate=this.value||null; renderFinTab();"></div>
+      <div style="flex:1"></div>
+      ${peutGererCaisse() ? `<button class="btn" onclick="definirCaisseInitiale()">Solde initial${ini.date ? " (" + esc(ini.date) + ")" : ""}</button>
+      <button class="btn btn-primary" onclick="cloturerCaisse('${esc(jour)}')">${clo ? "Re-clôturer" : "Clôturer"} la journée</button>` : ""}
+    </div>
     <div class="kpi-grid">
-      <div class="kpi-card"><div class="lbl">Entrées du jour</div><div class="val green">${fmtGNF(totalE)}</div></div>
-      <div class="kpi-card"><div class="lbl">Sorties du jour</div><div class="val red">${fmtGNF(totalS)}</div></div>
-      <div class="kpi-card"><div class="lbl">Solde de caisse (jour)</div><div class="val gold">${fmtGNF(totalE-totalS)}</div></div>
+      <div class="kpi-card"><div class="lbl">Ouverture (espèces)</div><div class="val">${fmtGNF(ouverture)}</div></div>
+      <div class="kpi-card"><div class="lbl">Entrées espèces</div><div class="val green">${fmtGNF(m.eEsp)}</div></div>
+      <div class="kpi-card"><div class="lbl">Sorties espèces</div><div class="val red">${fmtGNF(m.sEsp)}</div></div>
+      <div class="kpi-card"><div class="lbl">Solde théorique en caisse</div><div class="val gold">${fmtGNF(theorique)}</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="lbl">Orange Money — entrées</div><div class="val" style="color:var(--orange)">${fmtGNF(m.eOM)}</div></div>
+      <div class="kpi-card"><div class="lbl">Orange Money — sorties</div><div class="val red">${fmtGNF(m.sOM)}</div></div>
+      <div class="kpi-card"><div class="lbl">Orange Money — solde du jour</div><div class="val">${fmtGNF(m.eOM - m.sOM)}</div></div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h3>Journal du ${today}</h3>${btnImprimer('Journal de caisse')}</div>
+      <div class="panel-head"><h3>Clôture du ${esc(jour)}</h3></div>
+      ${blocClo}
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Journal du ${esc(jour)}</h3>${btnImprimer('Journal de caisse')}</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Heure</th><th>Nature</th><th>Détail</th><th>Entrée</th><th>Sortie</th></tr></thead>
+        <thead><tr><th>Heure</th><th>Nature</th><th>Détail</th><th>Mode</th><th>Entrée</th><th>Sortie</th><th>Par</th></tr></thead>
         <tbody>
-        ${entrees.length===0 && sorties.length===0 ? '<tr><td colspan="5" style="text-align:center;color:var(--text-mute)">Aucun mouvement enregistré aujourd\'hui (données de démonstration limitées à ce jour)</td></tr>' : ''}
-        ${entrees.map(p=>`<tr><td>—</td><td><span class="badge green">Encaissement</span></td><td>${esc(p.ref)} — ${esc(p.type)}</td><td style="color:var(--green)">${fmtGNF(p.montant)}</td><td>—</td></tr>`).join("")}
-        ${sorties.map(d=>`<tr><td>—</td><td><span class="badge red">Dépense</span></td><td>${esc(d.libelle)}</td><td>—</td><td style="color:var(--red)">${fmtGNF(d.montant)}</td></tr>`).join("")}
+        ${lignes.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:var(--text-mute)">Aucun mouvement enregistré ce jour.</td></tr>' : lignes.map(l=>l.html).join("")}
         </tbody>
+        <tfoot><tr><th colspan="4" style="text-align:right">Total du jour (tous modes)</th><th>${fmtGNF(m.eEsp + m.eOM)}</th><th>${fmtGNF(m.sEsp + m.sOM)}</th><th></th></tr></tfoot>
       </table></div>
     </div>
+    ${clotures.length ? `<div class="panel">
+      <div class="panel-head"><h3>Dernières clôtures</h3></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Théorique</th><th>Compté</th><th>Écart</th><th>Par</th></tr></thead>
+        <tbody>${clotures.map(d=>{ const k = clotureDe(d); return `<tr><td><a href="#" onclick="caisseDate='${esc(d)}'; renderFinTab(); return false;">${esc(d)}</a></td><td>${fmtGNF(k.theorique)}</td><td>${fmtGNF(k.compte)}</td><td style="color:var(--${k.ecart === 0 ? "green" : "red"})">${k.ecart > 0 ? "+" : ""}${fmtGNF(k.ecart)}</td><td>${esc(k.par||"")}</td></tr>`; }).join("")}</tbody>
+      </table></div>
+    </div>` : ""}
   `;
+}
+async function definirCaisseInitiale(){
+  if(!peutGererCaisse()) return;
+  const ini = caisseInitiale();
+  const mt = await saisir("Solde initial de la caisse en espèces (GNF) :", String(ini.montant || 0));
+  if(mt === null) return;
+  const montant = parseInt(String(mt).replace(/\s/g,""), 10);
+  if(isNaN(montant) || montant < 0){ toast("Montant invalide.", true); return; }
+  const dt = await saisir("À partir de quelle date ce solde est-il valable ? (AAAA-MM-JJ)", ini.date || todayISO(), { inputmode:"text" });
+  if(dt === null) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dt.trim())){ toast("Date invalide (format AAAA-MM-JJ).", true); return; }
+  if(!DB.compteurs) DB.compteurs = {};
+  DB.compteurs.caisseInitiale = { montant, date: dt.trim(), par: auteurCourant() };
+  traceAjouter("reglage", "caisse", "Solde initial de caisse", fmtGNF(montant) + " au " + dt.trim());
+  saveDB();
+  toast("Solde initial enregistré.");
+  renderFinTab();
+}
+async function cloturerCaisse(jour){
+  if(!peutGererCaisse()) return;
+  const m = mouvementsDuJour(jour);
+  const theorique = soldeEspecesAvant(jour) + m.eEsp - m.sEsp;
+  const saisie = await saisir("Clôture du " + jour + "\nSolde théorique en espèces : " + fmtGNF(theorique) + "\n\nEspèces comptées en caisse (GNF) :", String(theorique));
+  if(saisie === null) return;
+  const compte = parseInt(String(saisie).replace(/\s/g,""), 10);
+  if(isNaN(compte) || compte < 0){ toast("Montant invalide.", true); return; }
+  const ecart = compte - theorique;
+  if(ecart !== 0 && !await confirmer("Écart de " + (ecart > 0 ? "+" : "") + fmtGNF(ecart) + " entre le théorique et le comptage.\nClôturer quand même ?", { oui:"Clôturer", danger:false })) return;
+  if(!DB.compteurs) DB.compteurs = {};
+  if(!DB.compteurs.clotures) DB.compteurs.clotures = {};
+  DB.compteurs.clotures[jour] = { theorique, compte, ecart, ts:Date.now(), par:auteurCourant() };
+  traceAjouter("reglage", "caisse", "Clôture de caisse " + jour, "Compté " + fmtGNF(compte) + ", écart " + fmtGNF(ecart));
+  saveDB();
+  toast("Journée du " + jour + " clôturée.");
+  renderFinTab();
 }
 
 /* ---- Dépenses ---- */
+let depFiltres = { mois: "", cat:"", mode:"", q:"", annulees:false };
 function renderFinDepenses(c){
-  const total = DB.depenses.reduce((s,d)=>s+d.montant,0);
+  if(!depFiltres.mois && !depFiltres.__init){ depFiltres.mois = moisISO(); depFiltres.__init = true; }
+  const cats = Array.from(new Set(DEP_CATS.concat(DB.depenses.map(d=>d.categorie).filter(Boolean))));
   c.innerHTML = `
     <div class="actions-row">
       <div style="flex:1"></div>
       <button class="btn btn-primary" onclick="openDepenseForm()">+ Nouvelle dépense</button>
     </div>
-    <div class="kpi-grid"><div class="kpi-card"><div class="lbl">Total des dépenses (septembre)</div><div class="val red">${fmtGNF(total)}</div></div></div>
-    <div class="panel">
-      <div class="panel-head"><h3>Registre des dépenses</h3>${btnImprimer('Registre des dépenses')}</div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Date</th><th>Catégorie</th><th>Libellé</th><th>Montant</th></tr></thead>
-        <tbody>${DB.depenses.map(d=>`<tr><td>${esc(d.date)}</td><td><span class="badge grey">${esc(d.categorie)}</span></td><td>${esc(d.libelle)}</td><td>${fmtGNF(d.montant)}</td></tr>`).join("")}</tbody>
-      </table></div>
+    <div class="panel" style="margin-bottom:18px">
+      <div class="form-grid">
+        <div class="field"><label>Mois</label><input type="month" value="${esc(depFiltres.mois)}" onchange="depFiltres.mois=this.value; renderFinDepensesList();"></div>
+        <div class="field"><label>Catégorie</label><select onchange="depFiltres.cat=this.value; renderFinDepensesList();"><option value="">Toutes</option>${cats.map(k=>`<option ${depFiltres.cat===k?"selected":""}>${esc(k)}</option>`).join("")}</select></div>
+        <div class="field"><label>Mode</label><select onchange="depFiltres.mode=this.value; renderFinDepensesList();"><option value="">Tous</option><option ${depFiltres.mode==="Espèces"?"selected":""}>Espèces</option><option ${depFiltres.mode==="Orange Money"?"selected":""}>Orange Money</option></select></div>
+        <div class="field"><label>Recherche</label><input placeholder="Libellé, justificatif…" value="${esc(depFiltres.q)}" oninput="depFiltres.q=this.value; renderFinDepensesList();"></div>
+        <div class="field" style="align-self:end"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" ${depFiltres.annulees?"checked":""} onchange="depFiltres.annulees=this.checked; renderFinDepensesList();"> Afficher les annulées</label></div>
+        <div class="field" style="align-self:end"><button class="btn" onclick="depFiltres={mois:'',cat:'',mode:'',q:'',annulees:false,__init:true}; renderFinDepenses(document.getElementById('finContent'));">Tous les mois / réinitialiser</button></div>
+      </div>
     </div>
+    <div id="depKpis"></div>
+    <div class="panel">
+      <div class="panel-head"><div><h3>Registre des dépenses</h3><span class="hint" id="depCount"></span></div>${btnImprimer('Registre des dépenses')}</div>
+      <div class="table-wrap" id="depTableWrap"></div>
+    </div>
+    <div class="panel" id="depParCat" style="margin-top:18px"></div>
   `;
+  renderFinDepensesList();
 }
-function openDepenseForm(){
+function renderFinDepensesList(){
+  const f = depFiltres, q = (f.q||"").toLowerCase();
+  const liste = DB.depenses.filter(d=>{
+    if(!f.annulees && !depenseActive(d)) return false;
+    if(f.mois && !(d.date && d.date.startsWith(f.mois))) return false;
+    if(f.cat && d.categorie !== f.cat) return false;
+    if(f.mode && modeDepense(d) !== f.mode) return false;
+    if(q && !((d.libelle||"") + " " + (d.justificatif||"")).toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : (b.ts||0) - (a.ts||0)));
+  const actives = liste.filter(depenseActive);
+  const titre = f.mois ? libMois(f.mois) : "Toutes périodes";
+  document.getElementById("depKpis").innerHTML = `<div class="kpi-grid">
+    <div class="kpi-card"><div class="lbl">Total des dépenses — ${esc(titre)}</div><div class="val red">${fmtGNF(sommeMontants(actives))}</div></div>
+    <div class="kpi-card"><div class="lbl">Espèces</div><div class="val">${fmtGNF(sommeMontants(actives.filter(d=>modeDepense(d)==="Espèces")))}</div></div>
+    <div class="kpi-card"><div class="lbl">Orange Money</div><div class="val" style="color:var(--orange)">${fmtGNF(sommeMontants(actives.filter(d=>modeDepense(d)==="Orange Money")))}</div></div>
+    <div class="kpi-card"><div class="lbl">Nombre de dépenses</div><div class="val">${fmtNum(actives.length)}</div></div>
+  </div>`;
+  document.getElementById("depCount").textContent = liste.length + " ligne(s)";
+  document.getElementById("depTableWrap").innerHTML = `<table>
+    <thead><tr><th>Date</th><th>Heure</th><th>Catégorie</th><th>Libellé</th><th>Mode</th><th>Montant</th><th>Par</th><th></th></tr></thead>
+    <tbody>${liste.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-mute)">Aucune dépense pour ces filtres.</td></tr>' : liste.map(d=>{
+      const ann = !depenseActive(d);
+      const st = ann ? ' style="text-decoration:line-through;color:var(--text-mute)"' : "";
+      const just = d.justificatif ? `<div class="hint">Pièce : ${esc(d.justificatif)}</div>` : "";
+      const mod = d.modifiePar ? `<div class="hint">Modifiée par ${esc(d.modifiePar)}</div>` : "";
+      const motif = ann ? `<div class="hint" style="text-decoration:none">Annulée${d.annulePar ? " par " + esc(d.annulePar) : ""} : ${esc(d.motifAnnulation||"—")}</div>` : "";
+      return `<tr><td${st}>${esc(d.date)}</td><td>${heureDe(d.ts)}</td><td><span class="badge grey">${esc(d.categorie)}</span></td>
+        <td><span${st}>${esc(d.libelle)}</span>${just}${mod}${motif}</td><td>${esc(modeDepense(d))}</td><td${st}>${fmtGNF(d.montant)}</td><td>${esc(d.par||"")}</td>
+        <td style="white-space:nowrap">${ann
+          ? `<button class="btn btn-sm" onclick="retablirDepense('${d.id}')">Rétablir</button>`
+          : `<button class="btn btn-sm" onclick="openDepenseForm('${d.id}')">Modifier</button> <button class="btn btn-sm" onclick="annulerDepense('${d.id}')">Annuler</button>`}</td></tr>`;
+    }).join("")}</tbody>
+  </table>`;
+  const parCat = {};
+  actives.forEach(d=>{ parCat[d.categorie||"Divers"] = (parCat[d.categorie||"Divers"]||0) + d.montant; });
+  const ks = Object.keys(parCat).sort((a,b)=> parCat[b]-parCat[a]);
+  const tot = sommeMontants(actives) || 1;
+  document.getElementById("depParCat").innerHTML = `<div class="panel-head"><h3>Répartition par catégorie — ${esc(titre)}</h3></div>
+    <div class="table-wrap"><table><thead><tr><th>Catégorie</th><th>Montant</th><th>Part</th></tr></thead>
+    <tbody>${ks.length ? ks.map(k=>`<tr><td>${esc(k)}</td><td>${fmtGNF(parCat[k])}</td><td>${Math.round(parCat[k]*100/tot)} %</td></tr>`).join("") : '<tr><td colspan="3" style="text-align:center;color:var(--text-mute)">—</td></tr>'}</tbody></table></div>`;
+}
+function openDepenseForm(id){
+  const ex = id ? DB.depenses.find(x=>x.id===id) : null;
+  const v = ex || { date:todayISO(), categorie:"Fournitures", libelle:"", montant:"", mode:"Espèces", justificatif:"" };
+  const cats = Array.from(new Set(DEP_CATS.concat(v.categorie ? [v.categorie] : [])));
   openModal(`
     <div class="form-grid">
-      <div class="field"><label>Date</label><input type="date" id="d_date" value="${todayISO()}"></div>
-      <div class="field"><label>Catégorie</label><select id="d_cat"><option>Fournitures</option><option>Maintenance</option><option>Carburant bus</option><option>Électricité</option><option>Salaires</option><option>Divers</option></select></div>
-      <div class="field field-span2"><label>Libellé</label><input id="d_lib" placeholder="Ex: Achat de craies et cahiers"></div>
-      <div class="field field-span2"><label>Montant (GNF)</label><input type="number" id="d_montant" placeholder="0"></div>
+      <div class="field"><label>Date</label><input type="date" id="d_date" value="${esc(v.date)}"></div>
+      <div class="field"><label>Catégorie</label><select id="d_cat">${cats.map(k=>`<option ${k===v.categorie?"selected":""}>${esc(k)}</option>`).join("")}</select></div>
+      <div class="field field-span2"><label>Libellé</label><input id="d_lib" placeholder="Ex: Achat de craies et cahiers" value="${esc(v.libelle)}"></div>
+      <div class="field"><label>Montant (GNF)</label><input type="number" id="d_montant" placeholder="0" value="${esc(v.montant)}"></div>
+      <div class="field"><label>Mode de paiement</label><select id="d_mode"><option ${modeDepense(v)==="Espèces"?"selected":""}>Espèces</option><option ${modeDepense(v)==="Orange Money"?"selected":""}>Orange Money</option></select></div>
+      <div class="field field-span2"><label>Pièce justificative (n° facture, reçu…) — facultatif</label><input id="d_just" value="${esc(v.justificatif||"")}"></div>
     </div>
-  `, "Nouvelle dépense");
+  `, ex ? "Modifier la dépense" : "Nouvelle dépense");
   const modal = document.getElementById("dynModal");
   const foot = document.createElement("div");
   foot.className = "modal-foot";
-  foot.innerHTML = `<button class="btn" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="saveDepense()">Enregistrer</button>`;
+  foot.innerHTML = `<button class="btn" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="saveDepense(${ex ? `'${ex.id}'` : "null"})">Enregistrer</button>`;
   modal.querySelector(".modal").appendChild(foot);
 }
-function saveDepense(){
-  const montant = parseInt(document.getElementById("d_montant").value)||0;
+async function saveDepense(id){
+  const montant = parseInt(document.getElementById("d_montant").value, 10) || 0;
   const libelle = document.getElementById("d_lib").value.trim();
-  if(!libelle || montant<=0){ toast("Veuillez saisir un libellé et un montant valide.", true); return; }
-  DB.depenses.unshift({ id:uid("DEP"), date:document.getElementById("d_date").value, categorie:document.getElementById("d_cat").value, libelle, montant });
+  const date = document.getElementById("d_date").value;
+  if(!date){ toast("Veuillez choisir une date.", true); return; }
+  if(!libelle || montant <= 0){ toast("Veuillez saisir un libellé et un montant valide.", true); return; }
+  const data = { date, categorie:document.getElementById("d_cat").value, libelle:libelle.slice(0,200), montant,
+    mode:document.getElementById("d_mode").value, justificatif:document.getElementById("d_just").value.trim().slice(0,100) };
+  const ex = id ? DB.depenses.find(x=>x.id===id) : null;
+  if(!await verifierJourOuvert(date)) return;
+  if(ex && ex.date !== date && !await verifierJourOuvert(ex.date)) return;
+  if(ex){
+    Object.assign(ex, data, { modifieLe:Date.now(), modifiePar:auteurCourant() });
+  } else {
+    DB.depenses.unshift(Object.assign({ id:uid("DEP"), ts:Date.now(), par:auteurCourant(), statut:"valide" }, data));
+  }
   saveDB();
   closeModal();
-  toast("Dépense enregistrée.");
-  renderFinances();
+  toast(ex ? "Dépense modifiée." : "Dépense enregistrée.");
+  renderFinTab();
+}
+async function annulerDepense(id){
+  const d = DB.depenses.find(x=>x.id===id);
+  if(!d || !depenseActive(d)) return;
+  if(!await verifierJourOuvert(d.date)) return;
+  const motif = await saisir("Motif de l'annulation de « " + d.libelle + " » (" + fmtGNF(d.montant) + ") :", "", { inputmode:"text", oui:"Annuler la dépense", danger:true });
+  if(motif === null) return;
+  if(!motif.trim()){ toast("Le motif est obligatoire.", true); return; }
+  d.statut = "annule"; d.motifAnnulation = motif.trim().slice(0,160); d.annuleLe = Date.now(); d.annulePar = auteurCourant();
+  saveDB();
+  toast("Dépense annulée : elle n'est plus comptée.");
+  renderFinTab();
+}
+async function retablirDepense(id){
+  const d = DB.depenses.find(x=>x.id===id);
+  if(!d || depenseActive(d)) return;
+  if(!await verifierJourOuvert(d.date)) return;
+  if(!await confirmer("Rétablir la dépense « " + d.libelle + " » (" + fmtGNF(d.montant) + ") ?", { oui:"Rétablir", danger:false })) return;
+  // Valeurs vides (et non delete) : l'écriture Firestore fusionne les enregistrements, une clé supprimée ne serait pas effacée côté serveur.
+  d.statut = "valide"; d.motifAnnulation = ""; d.annuleLe = 0; d.annulePar = "";
+  saveDB();
+  toast("Dépense rétablie.");
+  renderFinTab();
 }
 
 /* ---- Barème ---- */
@@ -1790,7 +2015,7 @@ function savePaiement(){
   const mode = document.getElementById("p_mode").value;
   const date = document.getElementById("p_date").value;
   const ref = prochaineRefRecu();
-  DB.paiements.unshift({ id:uid("PAY"), ref, eleveId, type, montant, mode, date });
+  DB.paiements.unshift({ id:uid("PAY"), ref, eleveId, type, montant, mode, date, ts:Date.now(), par:auteurCourant() });
   if(type.startsWith("Scolarité")){
     const e = eleveById(eleveId);
     e.montantScolaritePaye = Math.min(e.montantScolariteDue, e.montantScolaritePaye + montant);
@@ -4759,9 +4984,9 @@ function exportCSV(kind){
     });
     filename = "examens_GSPS.csv";
   }else if(kind==="depenses"){
-    rows = [["Date","Catégorie","Libellé","Montant"]];
+    rows = [["Date","Heure","Catégorie","Libellé","Montant","Mode","Justificatif","Statut","Motif annulation","Saisi par"]];
     DB.depenses.forEach(d=>{
-      rows.push([d.date, d.categorie, d.libelle, d.montant]);
+      rows.push([d.date, heureDe(d.ts), d.categorie, d.libelle, d.montant, modeDepense(d), d.justificatif||"", depenseActive(d)?"Valide":"Annulée", d.motifAnnulation||"", d.par||""]);
     });
     filename = "depenses_GSPS.csv";
   }else if(kind==="discipline"){
