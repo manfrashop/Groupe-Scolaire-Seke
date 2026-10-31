@@ -7,10 +7,10 @@
      y compris au tout premier écran (pas seulement les données, déjà gérées par Firestore).
 
    Important : à chaque mise à jour déployée de l'application, changez CACHE_NAME
-   (ex. "gsps-cache-v26") pour que les anciens fichiers mis en cache soient purgés et
+   (ex. "gsps-cache-v27") pour que les anciens fichiers mis en cache soient purgés et
    remplacés par les nouveaux dès la prochaine visite en ligne. */
 
-const CACHE_NAME = "gsps-cache-v26";
+const CACHE_NAME = "gsps-cache-v27";
 // Alias fixe sous lequel on garde toujours une copie de la dernière page HTML chargée,
 // quel que soit son nom exact ou son chemin sur l'hébergement — pour pouvoir la retrouver
 // hors-ligne même si l'URL de navigation diffère légèrement (avec ou sans paramètres, etc.).
@@ -23,13 +23,12 @@ const SHELL_ALIAS = "gsps-app-shell";
 const LIBS_PRECACHE = [
   "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js",
   "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js",
-  "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js"
+  "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
 ];
-// Fichiers locaux indispensables au démarrage (Chart.js est désormais hébergé avec l'application).
-const LOCAL_PRECACHE = ["chart.umd.min.js"];
 function estLibExterne(url){
   return (url.hostname === "www.gstatic.com" && url.pathname.startsWith("/firebasejs/")) ||
-         false;
+         (url.hostname === "cdnjs.cloudflare.com" && url.pathname.startsWith("/ajax/libs/"));
 }
 /* Met en cache un module et, récursivement, les modules qu'il importe (./chunk.js). */
 async function precacherModule(cache, urlStr, vus){
@@ -56,10 +55,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       const vus = new Set();
-      return Promise.all([
-        ...LIBS_PRECACHE.map(u => precacherModule(cache, u, vus)),
-        ...LOCAL_PRECACHE.map(u => cache.add(u).catch(()=>{}))
-      ]);
+      return Promise.all(LIBS_PRECACHE.map(u => precacherModule(cache, u, vus)));
     })
   );
 });
@@ -102,11 +98,14 @@ self.addEventListener("fetch", (event) => {
     fetch(req)
       .then((res) => {
         if(res && res.ok){
+          // v25 : les deux copies sont faites tout de suite, AVANT de rendre `res` au navigateur
+          // (cloner plus tard, dans le callback asynchrone, échouait : « body already used »).
           const copie = res.clone();
+          const copieShell = estNavigation ? res.clone() : null;
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(req, copie);
-            if(estNavigation) cache.put(SHELL_ALIAS, res.clone());
-          });
+            if(copieShell) cache.put(SHELL_ALIAS, copieShell);
+          }).catch(() => {});
         }
         return res;
       })
