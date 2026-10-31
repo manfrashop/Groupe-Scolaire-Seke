@@ -1,0 +1,1 @@
+Fond de campus scolaire ajouté. L’image de fond est intégrée dans le CSS HTML pour fonctionner en local et hors ligne. Le JPG séparé est fourni pour réutilisation.
