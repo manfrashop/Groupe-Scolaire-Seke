@@ -205,7 +205,8 @@ var qrcode=function(){function b(b,i){var e=1,l=k(b);d=n(e,i,l);var g=new p(-1,i
 html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 body{
   font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
-  background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden;
+  background:linear-gradient(rgba(238,241,248,.78),rgba(238,241,248,.88)),url("background-complexe-scolaire.jpg") center center / cover fixed no-repeat;
+  color:var(--text); min-height:100vh; overflow-x:hidden;
   padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right);
 }
 img, canvas, svg{ max-width:100%; }
@@ -218,9 +219,7 @@ img, canvas, svg{ max-width:100%; }
   --l-navy:#0f1c3f; --l-navy-deep:#08102a; --l-gold:#d4af37; --l-gold-soft:#e8cf7d;
   --l-cream:#f8f5ec; --l-ink:#1c2438; --l-ink-dim:#5b6478; --l-ink-mute:#9098ac; --l-line:#e7e0cc;
   position:fixed; inset:0;
-  background:
-    radial-gradient(ellipse 800px 420px at 50% 0%, rgba(212,175,55,.10), transparent 65%),
-    var(--l-navy-deep);
+  background: linear-gradient(rgba(8,16,42,.80),rgba(8,16,42,.90)), url("background-complexe-scolaire.jpg") center center / cover fixed no-repeat;
   display:flex; align-items:flex-start; justify-content:center;
   overflow-y:auto; z-index:999; padding:40px 18px 110px;
 }
@@ -584,6 +583,17 @@ select.filter{padding:10px 12px; background:var(--bg2); border:1px solid var(--b
   .topbar > div:first-child, .topbar .yr-chip{max-width:1440px;}
 }
 </style>
+
+<style id="gsps-home-hero">
+/* Accueil premium GSPS */
+.gsps-welcome{position:relative;isolation:isolate;overflow:hidden;min-height:210px;border-radius:22px;margin:0 0 22px;padding:28px 30px;display:flex;align-items:center;color:#fff;background:linear-gradient(100deg,rgba(5,28,76,.92) 0%,rgba(10,73,153,.76) 54%,rgba(12,93,176,.26) 100%),url("background-complexe-scolaire.jpg") center 45%/cover no-repeat;box-shadow:0 14px 36px rgba(8,44,104,.22)}
+.gsps-welcome:after{content:"";position:absolute;z-index:-1;width:300px;height:300px;border:1px solid rgba(255,255,255,.22);border-radius:50%;right:-50px;top:-115px;box-shadow:0 0 0 30px rgba(255,255,255,.06),0 0 0 65px rgba(255,255,255,.04)}
+.gsps-welcome-copy{max-width:660px}.gsps-kicker{display:inline-flex;align-items:center;gap:8px;padding:6px 11px;border-radius:30px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase}.gsps-welcome h1{font-size:clamp(25px,3vw,36px);line-height:1.12;margin:14px 0 9px;color:#fff;letter-spacing:-.6px}.gsps-welcome p{font-size:14px;line-height:1.6;margin:0;max-width:580px;color:rgba(255,255,255,.9)}.gsps-welcome-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:19px}.gsps-welcome-actions button{border:1px solid rgba(255,255,255,.42);border-radius:10px;padding:10px 15px;font-weight:750;cursor:pointer;background:#fff;color:#164b91;box-shadow:0 5px 14px rgba(0,0,0,.12)}.gsps-welcome-actions button.secondary{background:rgba(255,255,255,.13);color:#fff}.gsps-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:0 0 23px}.gsps-shortcut{display:flex;align-items:center;gap:12px;text-align:left;padding:15px 14px;border:1px solid rgba(180,201,230,.7);border-radius:15px;background:rgba(255,255,255,.93);box-shadow:0 5px 17px rgba(25,55,100,.07);cursor:pointer;transition:transform .18s,box-shadow .18s}.gsps-shortcut:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(25,55,100,.13)}.gsps-shortcut .symbol{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:12px;background:#e7f0ff;font-size:21px}.gsps-shortcut strong{display:block;color:#16345e;font-size:13px}.gsps-shortcut small{display:block;margin-top:4px;color:#64748b;font-size:11px;line-height:1.35}
+@media(max-width:900px){.gsps-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}.gsps-welcome{padding:23px;min-height:190px}}
+@media(max-width:520px){.gsps-shortcuts{gap:9px}.gsps-shortcut{padding:11px 9px;gap:8px}.gsps-shortcut .symbol{width:34px;height:34px;flex-basis:34px;font-size:17px}.gsps-shortcut strong{font-size:12px}.gsps-welcome{padding:20px;min-height:210px}}
+@media print{.gsps-welcome{background:#174a91!important;print-color-adjust:exact}.gsps-shortcuts{display:none}}
+</style>
+
 </head>
 <body>
 
@@ -996,6 +1006,23 @@ function renderDashboard(){
   const parCycle = cycles.map(c=> eleves.filter(e=>e.cycle===c).length);
 
   el.innerHTML = `
+    <section class="gsps-welcome">
+      <div class="gsps-welcome-copy">
+        <span class="gsps-kicker">✦ G.S.P.S · Siguiri · 2026–2027</span>
+        <h1>Bienvenue dans votre espace scolaire</h1>
+        <p>Une gestion plus simple, plus claire et plus efficace pour accompagner la réussite de chaque élève.</p>
+        <div class="gsps-welcome-actions">
+          <button onclick="navigate('eleves')">＋ Inscrire un élève</button>
+          <button class="secondary" onclick="navigate('finances')">Voir les finances ↗</button>
+        </div>
+      </div>
+    </section>
+    <section class="gsps-shortcuts" aria-label="Raccourcis de gestion">
+      <button class="gsps-shortcut" onclick="navigate('eleves')"><span class="symbol">🎓</span><span><strong>Élèves & inscriptions</strong><small>Dossiers et effectifs</small></span></button>
+      <button class="gsps-shortcut" onclick="navigate('personnel')"><span class="symbol" style="background:#e1f8ee">👩🏽‍🏫</span><span><strong>Enseignants & personnel</strong><small>Équipe et informations</small></span></button>
+      <button class="gsps-shortcut" onclick="navigate('pedagogie')"><span class="symbol" style="background:#fff0d9">📘</span><span><strong>Notes & pédagogie</strong><small>Suivi des apprentissages</small></span></button>
+      <button class="gsps-shortcut" onclick="navigate('finances')"><span class="symbol" style="background:#f1e8ff">💳</span><span><strong>Frais de scolarité</strong><small>Paiements et recouvrement</small></span></button>
+    </section>
     ${renderDashboardQuickAccess()}
     <div class="kpi-grid">
       <div class="kpi-card"><div class="accent" style="background:var(--gold)"></div>
@@ -2112,7 +2139,27 @@ function imprimerRecu(){
       <div class="recu-cut"><span>✂ découper ici</span></div>
       <div class="recu-half">${recuContenuHTML(p, e, niv, solde, "EXEMPLAIRE DIRECTION")}</div>
     </div>
-  </body></html>`);
+  
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);
   w.document.close();
   w.focus();
   w.print();
@@ -2285,7 +2332,7 @@ function afficherCarteScolaire(id){
 /* Gestionnaire générique d'upload de photo d'identité : redimensionne/compresse côté client
    et l'enregistre sur l'enregistrement ciblé (élève ou personnel), puis relance le callback fourni. */
 /* v22 : photos d'identité plus légères (≈ 6 à 12 Ko au lieu de 25 à 50 Ko) : tout est stocké dans un seul document Firestore limité à 1 Mo. */
-const PHOTO_MAX_W = 200, PHOTO_MAX_H = 240, PHOTO_QUALITE = 0.72;
+const PHOTO_MAX_W = 320, PHOTO_MAX_H = 400, PHOTO_QUALITE = 0.64;
 const DOC_ALERTE_OCTETS = 800000, DOC_LIMITE_OCTETS = 1000000;
 function tailleBaseOctets(){ try{ return Math.round(new Blob([JSON.stringify(DB)]).size * 1.03); }catch(e){ return 0; } } /* ≈ taille du document Firestore */
 let __alerteTailleMontree = 0;
@@ -2538,6 +2585,26 @@ function imprimerCarteScolaire(){
 
   </div>
   <script>window.onload = function(){ setTimeout(function(){ window.focus(); window.print(); }, 150); };<\/script>
+
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
 </body>
 </html>`;
 
@@ -3052,7 +3119,27 @@ function imprimerProclamation(){
   if(!zone) return;
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
-  w.document.write(`<html><head><title>Proclamation des résultats</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #proclamationPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
+  w.document.write(`<html><head><title>Proclamation des résultats</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #proclamationPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);
   w.document.close();
   w.focus();
   w.print();
@@ -3063,7 +3150,27 @@ function imprimerBulletin(){
   if(!zone) return;
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
-  w.document.write(`<html><head><title>Bulletin</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #bulletinPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
+  w.document.write(`<html><head><title>Bulletin</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #bulletinPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);
   w.document.close();
   w.focus();
   w.print();
@@ -3217,7 +3324,27 @@ function imprimerLivret(){
   if(!zone) return;
   const w = window.open("", "_blank");
   if(!w){ toast("Impression bloquée par le navigateur : autorisez les pop-ups pour imprimer.", true); return; }
-  w.document.write(`<html><head><title>Livret scolaire</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #livretPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}</body></html>`);
+  w.document.write(`<html><head><title>Livret scolaire</title><style>@page{ size:A4; margin:8mm; } *{ box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; } html, body{ margin:0; padding:0; width:100%; background:#fff; } #livretPrintZone{ border-radius:0; width:100%; }</style></head><body>${zone.outerHTML}
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);
   w.document.close();
   w.focus();
   w.print();
@@ -3261,7 +3388,27 @@ function imprimerPanel(btn, titre){
       <h1><img src="favicon.png" alt="">GROUPE SCOLAIRE PRIVÉ SÉKÉ — ${titre}</h1>
       ${clone.outerHTML}
       <div style="margin-top:20px;font-size:10.5px;color:#888">Document imprimé le ${todayISO()}</div>
-    </body></html>
+    
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>
   `);
   w.document.close();
   w.focus();
@@ -4446,7 +4593,27 @@ function imprimerBulletinPaie(){
       <div class="bp-cut"><span>✂ découper ici</span></div>
       ${bulletinPaieContenuHTML(b, p, "EXEMPLAIRE DIRECTION")}
     </div>
-  </body></html>`);
+  
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);
   w.document.close();
   w.focus();
   w.print();
@@ -4816,7 +4983,27 @@ function enveloppeFenetre(titre, pagesSvg){
       .env-svg{ margin:0; box-shadow:none; page-break-after:always; break-after:page; }
       .env-svg:last-child{ page-break-after:auto; break-after:auto; }
     }
-  </style></head><body>${pagesSvg}</body></html>`);
+  </style></head><body>${pagesSvg}
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);
   w.document.close();
   setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 300);
   return w;
@@ -6274,7 +6461,27 @@ function honneurFenetre(titre, corps, paysage){
     th,td{ padding:7px 9px; border:1px solid #ddd; text-align:left; }
     th{ background:#f5f2e8; font-size:11px; text-transform:uppercase; }
     h1{ font-size:18px; margin:0 0 4px; } h2{ font-size:15px; margin:18px 0 8px; color:#8a6d00; }
-  </style></head><body>${corps}</body></html>`);
+  </style></head><body>${corps}
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);
   w.document.close(); w.focus(); w.print();
   return w;
 }
@@ -6431,7 +6638,27 @@ function certificatEditeStyles(){
 function aperçuCertificatEdite(){
   window._certificatEdition = lireEditeurCertificat();
   const w=window.open("","_blank"); if(!w){toast("Impression bloquée par le navigateur : autorisez les pop-ups.",true);return;}
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Aperçu du certificat</title><style>${certificatEditeStyles()}</style></head><body>${certificatEditeHTML(window._certificatEdition)}</body></html>`);w.document.close();w.focus();
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Aperçu du certificat</title><style>${certificatEditeStyles()}</style></head><body>${certificatEditeHTML(window._certificatEdition)}
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);w.document.close();w.focus();
 }
 function imprimerCertificatEdite(){
   window._certificatEdition = lireEditeurCertificat();
@@ -6440,7 +6667,39 @@ function imprimerCertificatEdite(){
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Certificat — ${esc(c.nom)}</title><style>${certificatEditeStyles()}
 .cert-editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}.cert-editor-grid label{display:block;font-size:12px;font-weight:700;color:var(--text-dim);margin-bottom:5px}.cert-editor-grid input,.cert-editor-grid textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font:inherit}.cert-editor-grid textarea{resize:vertical;min-height:76px}.cert-editor-full{grid-column:1/-1}.cert-editor-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
 @media(max-width:700px){.cert-editor-grid{grid-template-columns:1fr}.cert-editor-full{grid-column:auto}.cert-editor-actions{flex-wrap:wrap}}
-</style></head><body>${certificatEditeHTML(c)}</body></html>`);w.document.close();w.focus();setTimeout(()=>{try{w.print()}catch(e){}},250);
+</style>
+<style id="gsps-interieur-background">
+/* Fond élégant pour l'application ouverte — les impressions restent inchangées */
+@media screen {
+  html { min-height:100%; background:#eaf2ff; }
+  body { background-image: linear-gradient(135deg, rgba(7,24,58,.72), rgba(15,72,130,.38)), url("background-complexe-scolaire.jpg") !important; background-size:cover !important; background-position:center center !important; background-attachment:fixed !important; background-repeat:no-repeat !important; }
+  /* Les zones de travail restent lisibles devant le décor */
+  #app, #app-container, .app, .app-container, .main-content, .content, .page-content, main { background-color:rgba(248,251,255,.90); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+  header, .topbar, .app-header { backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+}
+@media print { body { background-image:none !important; } }
+</style>
+</head><body>${certificatEditeHTML(c)}
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
+</script>
+</body></html>`);w.document.close();w.focus();setTimeout(()=>{try{w.print()}catch(e){}},250);
 }
 
 function renderMatieresParCycle(){
@@ -6731,7 +6990,10 @@ let chartsRegistry = {};
 let fbModeSecours = false; // vrai si la lecture initiale a échoué : on n'écrit jamais les données de secours
 let fbSyncActive = false;   // true une fois l'écoute temps réel démarrée
 let fbApplyingRemote = false; // évite de ré-écrire dans Firestore ce qu'on vient de recevoir de Firestore
-let fbOnline = true;
+let fbOnline = false; // ne devient vrai qu'après un instantané confirmé par le serveur
+let fbServerSeen = false;
+let fbFromCache = true;
+let fbPendingWrites = false;
 let fbWriteError = null; // dernier code d'erreur d'écriture serveur (null = tout va bien)
 
 function majIndicateurConnexion(){
@@ -6743,19 +7005,32 @@ function majIndicateurConnexion(){
     document.body.appendChild(el);
   }
   if(fbWriteError){
-    el.textContent = "⚠ Non enregistré sur le serveur [" + fbWriteError + "]";
+    el.textContent = "⚠ ÉCHEC SERVEUR [" + fbWriteError + "]";
     el.style.background = "#fde8ec";
     el.style.color = "#b3243a";
+  } else if(!navigator.onLine || fbFromCache || !fbServerSeen){
+    el.textContent = "○ Serveur non confirmé — données locales";
+    el.style.background = "#fdf3e3";
+    el.style.color = "#9a6a12";
+  } else if(fbPendingWrites){
+    el.textContent = "↻ Envoi des modifications au serveur…";
+    el.style.background = "#fff3cd";
+    el.style.color = "#856404";
   } else if(fbOnline){
-    el.textContent = "● Synchronisé";
+    el.textContent = "● Serveur connecté — données confirmées";
     el.style.background = "#e6f7ec";
     el.style.color = "#1c7a3f";
   } else {
-    el.textContent = "○ Hors-ligne — travail local en cours";
+    el.textContent = "○ Synchronisation à vérifier";
     el.style.background = "#fdf3e3";
     el.style.color = "#9a6a12";
   }
 }
+
+// Le réseau du téléphone/ordinateur n'est qu'un indice ; le badge reste prudent
+// jusqu'à ce que Firestore confirme lui-même un instantané sans écriture en attente.
+window.addEventListener("online", ()=>{ fbOnline = false; fbFromCache = true; majIndicateurConnexion(); });
+window.addEventListener("offline", ()=>{ fbOnline = false; fbFromCache = true; majIndicateurConnexion(); });
 
 async function loadDB(){
   // Avec le cache local persistant activé, getDoc() répond instantanément depuis
@@ -6800,9 +7075,14 @@ function demarrerSyncTempsReel(){
     if(!remoteDb) return;
     /* v25 : instantané contenant nos propres écritures pas encore confirmées = écho local, DB est déjà à jour.
        L'appliquer remplaçait DB et relançait tout le rendu à chaque sauvegarde. */
-    if(enAttente) return;
-    fbOnline = !fromCache; // fromCache=true veut dire : donnée servie localement, pas confirmée par le serveur en ce moment
+    // Mettre à jour l'état AVANT d'ignorer l'écho local : auparavant, un envoi
+    // en attente pouvait laisser le badge vert « Synchronisé » affiché à tort.
+    fbFromCache = !!fromCache;
+    fbPendingWrites = !!enAttente;
+    fbOnline = !fromCache && !enAttente;
+    if(fbOnline) fbServerSeen = true;
     majIndicateurConnexion();
+    if(enAttente) return;
     // Ignore l'écho de notre propre écriture (on vient de la faire nous-mêmes, DB est déjà à jour)
     if(fbApplyingRemote) return;
     fbApplyingRemote = true;
@@ -7066,7 +7346,10 @@ function saveDB(db){
   /* Renvoie une promesse : true si l'écriture est acceptée (ou mise en file hors-ligne), false sinon.
      Les appelants peuvent l'attendre (await saveDB()) ou l'ignorer comme avant. */
   plafonnerJournal();
+  fbPendingWrites = true;
+  majIndicateurConnexion();
   return Promise.resolve(window.__fb.saveDB(dbVersFirestore(DB))).then(ok=>{
+    fbPendingWrites = false;
     if(ok === false){
       fbWriteError = window.__fb.lastWriteError() || "erreur";
       majIndicateurConnexion();
@@ -7080,6 +7363,9 @@ function saveDB(db){
     if(ok !== false) verifierTailleBase();
     return ok !== false;
   }).catch(err=>{
+    fbPendingWrites = false;
+    fbWriteError = (err && err.code) ? err.code : "erreur-ecriture";
+    majIndicateurConnexion();
     console.error("saveDB :", err);
     toast("Erreur d'enregistrement : " + ((err && err.code) || err), true);
     return false;
@@ -8059,6 +8345,26 @@ function statutPaiement(el){
 }
 
 
+</script>
+
+<style id="gsps-photo-zoom-and-compact">
+/* Mise en page plus compacte */
+@media(min-width:768px){ .content{padding:18px 22px!important} .page-title{margin-bottom:14px} .card{margin-bottom:14px} }
+/* Aperçu agrandi des photos uploadées */
+#gspsPhotoZoom{position:fixed;inset:0;z-index:999999;background:rgba(4,10,28,.88);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)}
+#gspsPhotoZoom.open{display:flex}
+#gspsPhotoZoom .gsps-zoom-box{position:relative;max-width:min(94vw,900px);max-height:92vh;display:flex;align-items:center;justify-content:center}
+#gspsPhotoZoom img{display:block;max-width:90vw;max-height:84vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 18px 60px #0008;transform:scale(var(--gsps-zoom,1));transition:transform .15s ease;cursor:zoom-in}
+#gspsPhotoZoom .gsps-zoom-close,#gspsPhotoZoom .gsps-zoom-btn{border:0;border-radius:50%;width:42px;height:42px;background:#fff;color:#10234d;font-size:25px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px #0004}
+#gspsPhotoZoom .gsps-zoom-close{position:absolute;right:-12px;top:-12px}
+#gspsPhotoZoom .gsps-zoom-controls{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+#gspsPhotoZoom .gsps-zoom-btn{font-size:22px}
+.gsps-zoomable-photo{cursor:zoom-in}
+</style>
+
+<div id="gspsPhotoZoom" aria-label="Aperçu de la photo" role="dialog" aria-modal="true"><div class="gsps-zoom-box"><button class="gsps-zoom-close" type="button" aria-label="Fermer">×</button><img alt="Photo agrandie"><div class="gsps-zoom-controls"><button class="gsps-zoom-btn" data-zoom="out" type="button" aria-label="Dézoomer">−</button><button class="gsps-zoom-btn" data-zoom="reset" type="button" aria-label="Taille normale">⟲</button><button class="gsps-zoom-btn" data-zoom="in" type="button" aria-label="Zoomer">+</button></div></div></div>
+<script id="gsps-photo-zoom-script">
+(()=>{const overlay=document.getElementById('gspsPhotoZoom');if(!overlay)return;const big=overlay.querySelector('img');let scale=1;function show(src,alt){big.src=src;big.alt=alt||'Photo agrandie';scale=1;big.style.setProperty('--gsps-zoom',scale);overlay.classList.add('open')}function hide(){overlay.classList.remove('open');big.src='';scale=1}document.addEventListener('click',e=>{if(e.target.closest('#gspsPhotoZoom'))return;const img=e.target.closest('img');if(!img)return;const src=img.getAttribute('src')||'';if(!src.startsWith('data:image/')&&!/photo|eleve|élève|personnel|avatar/i.test((img.alt||'')+' '+(img.className||'')))return;if(src)show(src,img.alt)});overlay.addEventListener('click',e=>{if(e.target===overlay||e.target.closest('.gsps-zoom-close'))hide();const b=e.target.closest('[data-zoom]');if(b){const act=b.dataset.zoom;scale=act==='reset'?1:Math.max(1,Math.min(4,scale+(act==='in'?.25:-.25)));big.style.setProperty('--gsps-zoom',scale);big.style.cursor=scale>1?'zoom-out':'zoom-in'}});big.addEventListener('click',()=>{scale=scale>=4?1:Math.min(4,scale+.5);big.style.setProperty('--gsps-zoom',scale)});document.addEventListener('keydown',e=>{if(e.key==='Escape')hide()});})();
 </script>
 </body>
 </html>
