@@ -1,3 +1,11 @@
+# GSPS v28 — correction du blocage des boutons
+
+- Correction : suppression des copies du bloc de zoom photo qui avaient été injectées dans plusieurs modèles HTML d’impression. Leurs balises `</script>` interrompaient le script principal de l’application et pouvaient laisser les boutons de l’accueil inactifs.
+- Le zoom photo est conservé une seule fois, à la fin du document principal.
+- Vérification : les balises `<script>` sont équilibrées et les scripts JavaScript extraits passent le contrôle syntaxique Node.js.
+- Cache du service worker : `gsps-cache-v29` pour forcer le remplacement de l’ancienne version après une ouverture en ligne.
+- Cette correction ne modifie pas les données scolaires ni les règles Firestore. La synchronisation entre appareils devra être vérifiée séparément après le déploiement.
+
 # GSPS v27 — plus de fenêtre Firebase
 
 - Les mots de passe Firebase des 5 comptes se renseignent UNE fois dans `ROLE_CREDENTIALS` (champ `password`, en haut du script du fichier HTML). La connexion se fait alors sans aucune fenêtre. Si un mot de passe reste vide, l'ancienne fenêtre de saisie sert de secours.
@@ -42,3 +50,11 @@ Non traité : lectures trop larges du document unique (voir SECURITE-V14.md), PI
 - Raccourci « Préparer une leçon » dans les accès rapides.
 - **Déploiement** : (1) republier `firestore.rules` (collection `lecons` pour le profil enseignant) ; (2) la Direction doit se connecter une fois après la mise à jour : elle enregistre automatiquement l'ajout du module dans les droits (`droits.<profil>.collections`). Tant que ce n'est pas fait, l'enseignant verrait le module mais ses enregistrements seraient refusés (« permission-denied »).
 - Les fiches sont dans le document unique (limite 1 Mo) : ~1,5 Ko par fiche typique, soit ~300 fiches pour 500 Ko. L'application refuse d'enregistrer au-delà de 97 % de la limite ; pour les cours longs, utiliser un lien cloud.
+
+
+# GSPS v28 — état de synchronisation plus fiable
+- Le badge ne devient plus vert avant la réception d'un instantané Firestore confirmé par le serveur.
+- Les écritures locales en attente sont signalées explicitement (« Envoi des modifications… »).
+- Les échecs serveur restent visibles au lieu de laisser un ancien statut vert.
+- Le cache du service worker passe en v28 pour forcer le renouvellement des fichiers de l'application.
+- Cette mise à jour améliore le diagnostic côté appareil ; elle ne remplace pas la publication des règles Firestore v27 dans la console Firebase.
