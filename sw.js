@@ -10,7 +10,7 @@
    (ex. "gsps-cache-v27") pour que les anciens fichiers mis en cache soient purgés et
    remplacés par les nouveaux dès la prochaine visite en ligne. */
 
-const CACHE_NAME = "gsps-cache-v27";
+const CACHE_NAME = "gsps-cache-v28";
 // Alias fixe sous lequel on garde toujours une copie de la dernière page HTML chargée,
 // quel que soit son nom exact ou son chemin sur l'hébergement — pour pouvoir la retrouver
 // hors-ligne même si l'URL de navigation diffère légèrement (avec ou sans paramètres, etc.).

@@ -6990,7 +6990,10 @@ let chartsRegistry = {};
 let fbModeSecours = false; // vrai si la lecture initiale a échoué : on n'écrit jamais les données de secours
 let fbSyncActive = false;   // true une fois l'écoute temps réel démarrée
 let fbApplyingRemote = false; // évite de ré-écrire dans Firestore ce qu'on vient de recevoir de Firestore
-let fbOnline = true;
+let fbOnline = false; // ne devient vrai qu'après un instantané confirmé par le serveur
+let fbServerSeen = false;
+let fbFromCache = true;
+let fbPendingWrites = false;
 let fbWriteError = null; // dernier code d'erreur d'écriture serveur (null = tout va bien)
 
 function majIndicateurConnexion(){
@@ -7002,19 +7005,32 @@ function majIndicateurConnexion(){
     document.body.appendChild(el);
   }
   if(fbWriteError){
-    el.textContent = "⚠ Non enregistré sur le serveur [" + fbWriteError + "]";
+    el.textContent = "⚠ ÉCHEC SERVEUR [" + fbWriteError + "]";
     el.style.background = "#fde8ec";
     el.style.color = "#b3243a";
+  } else if(!navigator.onLine || fbFromCache || !fbServerSeen){
+    el.textContent = "○ Serveur non confirmé — données locales";
+    el.style.background = "#fdf3e3";
+    el.style.color = "#9a6a12";
+  } else if(fbPendingWrites){
+    el.textContent = "↻ Envoi des modifications au serveur…";
+    el.style.background = "#fff3cd";
+    el.style.color = "#856404";
   } else if(fbOnline){
-    el.textContent = "● Synchronisé";
+    el.textContent = "● Serveur connecté — données confirmées";
     el.style.background = "#e6f7ec";
     el.style.color = "#1c7a3f";
   } else {
-    el.textContent = "○ Hors-ligne — travail local en cours";
+    el.textContent = "○ Synchronisation à vérifier";
     el.style.background = "#fdf3e3";
     el.style.color = "#9a6a12";
   }
 }
+
+// Le réseau du téléphone/ordinateur n'est qu'un indice ; le badge reste prudent
+// jusqu'à ce que Firestore confirme lui-même un instantané sans écriture en attente.
+window.addEventListener("online", ()=>{ fbOnline = false; fbFromCache = true; majIndicateurConnexion(); });
+window.addEventListener("offline", ()=>{ fbOnline = false; fbFromCache = true; majIndicateurConnexion(); });
 
 async function loadDB(){
   // Avec le cache local persistant activé, getDoc() répond instantanément depuis
@@ -7059,9 +7075,14 @@ function demarrerSyncTempsReel(){
     if(!remoteDb) return;
     /* v25 : instantané contenant nos propres écritures pas encore confirmées = écho local, DB est déjà à jour.
        L'appliquer remplaçait DB et relançait tout le rendu à chaque sauvegarde. */
-    if(enAttente) return;
-    fbOnline = !fromCache; // fromCache=true veut dire : donnée servie localement, pas confirmée par le serveur en ce moment
+    // Mettre à jour l'état AVANT d'ignorer l'écho local : auparavant, un envoi
+    // en attente pouvait laisser le badge vert « Synchronisé » affiché à tort.
+    fbFromCache = !!fromCache;
+    fbPendingWrites = !!enAttente;
+    fbOnline = !fromCache && !enAttente;
+    if(fbOnline) fbServerSeen = true;
     majIndicateurConnexion();
+    if(enAttente) return;
     // Ignore l'écho de notre propre écriture (on vient de la faire nous-mêmes, DB est déjà à jour)
     if(fbApplyingRemote) return;
     fbApplyingRemote = true;
@@ -7325,7 +7346,10 @@ function saveDB(db){
   /* Renvoie une promesse : true si l'écriture est acceptée (ou mise en file hors-ligne), false sinon.
      Les appelants peuvent l'attendre (await saveDB()) ou l'ignorer comme avant. */
   plafonnerJournal();
+  fbPendingWrites = true;
+  majIndicateurConnexion();
   return Promise.resolve(window.__fb.saveDB(dbVersFirestore(DB))).then(ok=>{
+    fbPendingWrites = false;
     if(ok === false){
       fbWriteError = window.__fb.lastWriteError() || "erreur";
       majIndicateurConnexion();
@@ -7339,6 +7363,9 @@ function saveDB(db){
     if(ok !== false) verifierTailleBase();
     return ok !== false;
   }).catch(err=>{
+    fbPendingWrites = false;
+    fbWriteError = (err && err.code) ? err.code : "erreur-ecriture";
+    majIndicateurConnexion();
     console.error("saveDB :", err);
     toast("Erreur d'enregistrement : " + ((err && err.code) || err), true);
     return false;
