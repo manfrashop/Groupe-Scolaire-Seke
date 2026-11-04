@@ -80,6 +80,31 @@
   let fbReady = false; // devient vrai une fois le compte du profil connecté authentifié
   let fbLastAuthError = null; // dernier code d'erreur d'authentification (pour un message précis)
 
+  /* v34 : vérificateur hors-ligne. Dérivation PBKDF2-SHA256 (250 000 itérations, sel aléatoire) du mot de passe
+     validé EN LIGNE par Firebase ; seul le résultat dérivé est conservé (jamais le mot de passe).
+     Ne sert qu'à rouvrir l'app sans internet sur un appareil déjà connecté. Utiliser un mot de passe long. */
+  const OFFLINE_VERIF_KEY = "gsps_offline_verif_v1";
+  const b64 = (buf)=>{ let s=""; new Uint8Array(buf).forEach(c=> s+=String.fromCharCode(c)); return btoa(s); };
+  const unb64 = (t)=> Uint8Array.from(atob(t), c=>c.charCodeAt(0));
+  async function pbkdf2(password, salt){
+    const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+    return b64(await crypto.subtle.deriveBits({ name:"PBKDF2", hash:"SHA-256", salt, iterations:250000 }, k, 256));
+  }
+  async function offlineVerifSave(profile, password){
+    try{
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const store = JSON.parse(localStorage.getItem(OFFLINE_VERIF_KEY) || "{}");
+      store[profile] = { salt: b64(salt), hash: await pbkdf2(password, salt) };
+      localStorage.setItem(OFFLINE_VERIF_KEY, JSON.stringify(store));
+    }catch(e){}
+  }
+  async function offlineVerifCheck(profile, password){
+    try{
+      const rec = (JSON.parse(localStorage.getItem(OFFLINE_VERIF_KEY) || "{}"))[profile];
+      return !!rec && (await pbkdf2(password, unb64(rec.salt))) === rec.hash;
+    }catch(e){ return false; }
+  }
+
   /* Authentification Firebase : aucun mot de passe n'est embarqué dans le code. */
   async function fbSignInAsRole(profile, password){
     const cred = ROLE_CREDENTIALS[profile];
@@ -101,12 +126,25 @@
       return false;
     }
     try{
-      await signInWithEmailAndPassword(fbAuth, cred.email, password);
+      await Promise.race([
+        signInWithEmailAndPassword(fbAuth, cred.email, password),
+        new Promise((_, rej)=> setTimeout(()=> rej({ code:"auth/network-request-failed" }), 10000))
+      ]);
       fbReady = true;
       fbLastAuthError = null;
+      offlineVerifSave(profile, password);   // permet de se reconnecter sans internet avec le MÊME mot de passe
       return true;
     }catch(err){
       const code = (err && err.code) ? err.code : "";
+      /* v34 : sans réseau, Firebase ne peut pas vérifier le mot de passe. Si la session Firebase de cet appareil
+         est déjà celle du profil ET que le mot de passe correspond à celui validé en ligne sur cet appareil,
+         on autorise l'ouverture hors-ligne (les données viennent du cache local Firestore). */
+      if(code === "auth/network-request-failed" && fbAuth.currentUser && fbAuth.currentUser.email === cred.email
+         && await offlineVerifCheck(profile, password)){
+        fbReady = true;
+        fbLastAuthError = null;
+        return true;
+      }
       console.error("Connexion Firebase du profil « " + profile + " » impossible :", err);
       fbLastAuthError = code || String((err && err.message) || err);
       fbReady = false;
@@ -186,7 +224,7 @@
 
   // Exposés pour le reste de l'app (script classique ci-dessous)
   window.__fb = { loadDB: fbLoadDB, saveDB: fbSaveDB, listen: fbListen, deleteSentinel: deleteField, signInAsRole: fbSignInAsRole, authErrorMessage: fbAuthErrorMessage, emailDuProfil: (p)=> (ROLE_CREDENTIALS[p]||{}).email || "", lastWriteError: ()=> fbLastWriteError,
-    signOutAll: async ()=>{ try{ if(fbUnsubscribe){ fbUnsubscribe(); fbUnsubscribe = null; } await signOut(fbAuth); }catch(e){ console.error("signOut :", e); } } };
+    signOutAll: async ()=>{ try{ if(fbUnsubscribe){ fbUnsubscribe(); fbUnsubscribe = null; } await signOut(fbAuth); try{ localStorage.removeItem(OFFLINE_VERIF_KEY); }catch(e){} }catch(e){ console.error("signOut :", e); } } };
 </script>
 <script>
 /* qrcode-generator (minified-ish, MIT) - compact vanilla JS QR encoder */
@@ -7686,7 +7724,12 @@ function installApp(){
 // Sans effet si sw.js n'est pas déployé à côté de ce fichier — l'app continue de fonctionner normalement.
 if("serviceWorker" in navigator){
   window.addEventListener("load", ()=>{
-    navigator.serviceWorker.register("sw.js").catch(()=>{ /* fichier absent : installation manuelle toujours possible */ });
+    navigator.serviceWorker.register("sw.js").then(()=> navigator.serviceWorker.ready).then((reg)=>{
+      // v34 : met la page et les icônes en cache dès la première visite (sinon l'ouverture hors-ligne échoue).
+      const cible = reg.active || navigator.serviceWorker.controller;
+      if(cible) cible.postMessage({ type:"cache-shell", url: location.href,
+        assets:["icon-192.png","icon-512.png","icon-192-maskable.png","icon-512-maskable.png","favicon.png","apple-touch-icon.png","logo.webp","background-complexe-scolaire.jpg"] });
+    }).catch(()=>{ /* fichier absent : installation manuelle toujours possible */ });
   });
 }
 // Construit le manifeste PWA dynamiquement (garde l'application en un seul fichier HTML)

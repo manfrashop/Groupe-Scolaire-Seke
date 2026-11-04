@@ -43,7 +43,10 @@ async function precacherModule(cache, urlStr, vus){
     }
     if(!/\.js($|\?)/.test(urlStr)) return;
     const txt = await rep.clone().text();
-    const re = /(?:from|import)\s*["'](\.{1,2}\/[^"']+)["']/g;
+    // v34 : les modules du SDK Firebase s'importent aussi par URL ABSOLUE (https://www.gstatic.com/...) :
+    // l'ancienne expression ne suivait que les chemins relatifs, donc firebase-component/-util/-logger
+    // n'étaient pas pré-cachés et l'app ne démarrait pas hors-ligne après une première visite.
+    const re = /(?:from|import)\s*["']((?:\.{1,2}\/|https:\/\/www\.gstatic\.com\/firebasejs\/)[^"']+)["']/g;
     let m; const suites = [];
     while((m = re.exec(txt))) suites.push(new URL(m[1], urlStr).href);
     await Promise.all(suites.map(u => precacherModule(cache, u, vus)));
@@ -58,6 +61,33 @@ self.addEventListener("install", (event) => {
       return Promise.all(LIBS_PRECACHE.map(u => precacherModule(cache, u, vus)));
     })
   );
+});
+
+/* v34 : à la toute première visite, la page est chargée AVANT que le service worker contrôle la page ;
+   elle n'était donc jamais mise en cache. La page envoie maintenant son URL et le service worker la
+   récupère, ainsi que les icônes, pour que l'ouverture hors-ligne marche dès la première visite. */
+self.addEventListener("message", (event) => {
+  const d = event.data || {};
+  if(d.type !== "cache-shell" || !d.url) return;
+  event.waitUntil((async () => {
+    try{
+      const cache = await caches.open(CACHE_NAME);
+      const u = new URL(d.url, self.location.href); u.hash = "";
+      if(u.origin !== self.location.origin) return;
+      const res = await fetch(u.href, { cache: "reload" });
+      if(res && res.ok){
+        await cache.put(u.href, res.clone());
+        await cache.put(SHELL_ALIAS, res.clone());
+      }
+      await Promise.all((d.assets || []).map(async (a) => {
+        try{
+          const au = new URL(a, self.location.href);
+          if(au.origin !== self.location.origin) return;
+          const r = await fetch(au.href); if(r && r.ok) await cache.put(au.href, r);
+        }catch(e){}
+      }));
+    }catch(e){}
+  })());
 });
 
 self.addEventListener("activate", (event) => {
@@ -94,30 +124,44 @@ self.addEventListener("fetch", (event) => {
 
   const estNavigation = req.mode === "navigate";
 
-  event.respondWith(
-    fetch(req)
-      .then((res) => {
-        if(res && res.ok){
-          // v25 : les deux copies sont faites tout de suite, AVANT de rendre `res` au navigateur
-          // (cloner plus tard, dans le callback asynchrone, échouait : « body already used »).
-          const copie = res.clone();
-          const copieShell = estNavigation ? res.clone() : null;
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(req, copie);
-            if(copieShell) cache.put(SHELL_ALIAS, copieShell);
-          }).catch(() => {});
-        }
-        return res;
-      })
-      .catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        const correspondance = await cache.match(req);
-        if(correspondance) return correspondance;
-        if(estNavigation){
-          const shell = await cache.match(SHELL_ALIAS);
-          if(shell) return shell;
-        }
-        return Response.error();
-      })
-  );
+  const rendreDepuisCache = async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const correspondance = await cache.match(req) || (estNavigation ? await cache.match(req.url, { ignoreSearch: true }) : null);
+    if(correspondance) return correspondance;
+    if(estNavigation){
+      const shell = await cache.match(SHELL_ALIAS);
+      if(shell) return shell;
+    }
+    return null;
+  };
+
+  event.respondWith((async () => {
+    const reseau = fetch(req).then((res) => {
+      if(res && res.ok){
+        // v25 : les copies sont faites AVANT de rendre `res` au navigateur.
+        const copie = res.clone();
+        const copieShell = estNavigation ? res.clone() : null;
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(req, copie);
+          if(copieShell) cache.put(SHELL_ALIAS, copieShell);
+        }).catch(() => {});
+      }
+      return res;
+    });
+    if(!estNavigation){
+      try{ return await reseau; }
+      catch(e){ return (await rendreDepuisCache()) || Response.error(); }
+    }
+    // v34 : sur une connexion « présente mais sans internet », fetch() peut rester bloqué très longtemps.
+    // Pour la page elle-même, on bascule sur la copie en cache après 4 s (le réseau continue de mettre le cache à jour).
+    const delai = new Promise((r) => setTimeout(() => r("delai"), 4000));
+    try{
+      const gagnant = await Promise.race([reseau, delai]);
+      if(gagnant !== "delai") return gagnant;
+      const cache = await rendreDepuisCache();
+      return cache || await reseau;
+    }catch(e){
+      return (await rendreDepuisCache()) || Response.error();
+    }
+  })());
 });
