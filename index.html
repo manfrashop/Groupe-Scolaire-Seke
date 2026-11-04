@@ -87,7 +87,10 @@
     // Firebase restaure la session de façon asynchrone : sans cette attente, currentUser est
     // toujours null au chargement et le mot de passe est redemandé à chaque ouverture.
     try{ if(typeof fbAuth.authStateReady === "function") await fbAuth.authStateReady(); }catch(e){}
-    if(fbAuth.currentUser && fbAuth.currentUser.email === cred.email){
+    /* v34 : la session existante n'est réutilisée QUE lorsqu'aucun mot de passe n'est fourni
+       (rechargement de la page dans le même onglet). Dès qu'un mot de passe est saisi sur l'écran
+       de connexion, il est toujours vérifié auprès de Firebase, même si une session existe déjà. */
+    if(!password && fbAuth.currentUser && fbAuth.currentUser.email === cred.email){
       fbReady = true;
       return true;
     }
@@ -239,11 +242,11 @@ img, canvas, svg{ max-width:100%; }
 .login-id .sub{font-size:11px; color:var(--l-gold-soft); letter-spacing:2.5px; margin-top:6px;}
 .login-motto{font-size:11px; color:rgba(255,255,255,.5); font-style:italic; margin-top:11px;}
 .login-body{padding:26px 30px 22px;}
-.login-body select{
+.login-body select, .login-body input[type=text]{
   width:100%; padding:12px 14px; margin-bottom:10px; background:#fff;
   border:1px solid #ddd5b8; border-radius:6px; color:var(--l-ink); font-size:14px; font-family:inherit;
 }
-.login-body select:focus{outline:none; border-color:var(--l-gold);}
+.login-body select:focus, .login-body input[type=text]:focus{outline:none; border-color:var(--l-gold);}
 .login-hint{margin-top:18px; padding-top:14px; border-top:1px solid var(--l-line); font-size:11px; color:var(--l-ink-mute); line-height:1.6; text-align:center;}
 .login-error{color:#b0384a; font-size:12px; margin-bottom:10px; display:none; text-align:center;}
 .pin-dots{display:flex; justify-content:center; gap:16px; margin:4px 0 20px;}
@@ -607,8 +610,8 @@ select.filter{padding:10px 12px; background:var(--bg2); border:1px solid var(--b
       <div class="login-motto">Travail · Rigueur · Discipline</div>
     </div>
     <div class="login-body">
-      <div class="login-error" id="loginError">Code PIN incorrect.</div>
-      <select id="loginProfile" onchange="pinReset()">
+      <div class="login-error" id="loginError"></div>
+      <select id="loginProfile" style="width:100%;padding:12px 14px;margin-bottom:10px;font-size:16px;border:1.5px solid #d3daea;border-radius:10px;background:#fff">
         <option value="">— Choisir un profil —</option>
         <option value="direction">Direction</option>
         <option value="comptabilite">Comptabilité</option>
@@ -616,18 +619,12 @@ select.filter{padding:10px 12px; background:var(--bg2); border:1px solid var(--b
         <option value="enseignant">Enseignant</option>
         <option value="transport">Responsable Transport</option>
       </select>
-      <p class="login-sub-info" id="pinInfo">Choisissez votre profil puis saisissez votre code PIN.</p>
-      <div class="pin-dots" id="pinDots"><span></span><span></span><span></span><span></span></div>
-      <div class="pin-pad" id="pinPad">
-        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
-        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
-        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
-        <button type="button" class="pin-fn" data-k="clear">Effacer</button><button type="button" data-k="0">0</button><button type="button" class="pin-fn" data-k="back">⌫</button>
-      </div>
-      <button type="button" class="btn-install-login" id="bioBtn" style="display:none" onclick="bioConnexion()">👆 Empreinte / visage</button>
-      <label style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:10px;font-size:12px;color:var(--l-ink-dim)"><input type="checkbox" id="appareilPartage" style="width:auto" onchange="try{localStorage.setItem('gsps_appareil_partage', this.checked?'1':'0')}catch(e){}"> Appareil partagé (déconnexion complète à la sortie)</label>
+      <input type="password" id="loginMdp" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="Mot de passe du profil" style="width:100%;padding:12px 14px;margin-bottom:10px;font-size:16px;border:1.5px solid #d3daea;border-radius:10px;background:#fff" onkeydown="if(event.key==='Enter')loginAvecMotDePasse()">
+      <p class="login-sub-info" id="pinInfo">Choisissez votre profil et saisissez son mot de passe.</p>
+      <button type="button" class="btn-install-login" onclick="loginAvecMotDePasse()" style="display:block;width:100%">Se connecter</button>
+            <label style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:10px;font-size:12px;color:var(--l-ink-dim)"><input type="checkbox" id="appareilPartage" style="width:auto" onchange="try{localStorage.setItem('gsps_appareil_partage', this.checked?'1':'0')}catch(e){}"> Appareil partagé (déconnexion complète à la sortie)</label>
       <button class="btn-install-login js-install-btn" id="installBtnLogin" onclick="installApp()">📲 Installer l'application</button>
-      <div class="login-hint">Année scolaire 2026 - 2027<br><span id="pinFirstHint">Première connexion : le PIN initial est <b>2027</b>. Il vous sera demandé de le changer.<br>Une authentification Firebase est requise pour la synchronisation sécurisée.</span><br><button type="button" class="pin-forgot" onclick="pinForgot()">PIN oublié ?</button></div>
+      <div class="login-hint">Année scolaire 2026 - 2027 · <span id="appVersionLogin"></span><br><span>Une authentification Firebase est requise pour la synchronisation sécurisée.</span></div>
     </div>
   </div>
 </div>
@@ -691,6 +688,7 @@ const GSPS_LOGO_DATA = "data:image/webp;base64,UklGRlBWAABXRUJQVlA4WAoAAAAQAAAAv
    ============================================================ */
 
 const ANNEE_SCOLAIRE = "2026-2027";
+const APP_VERSION = "v34";
 
 // Niveaux & barème officiel (tiré de la fiche de renseignement)
 const NIVEAUX = [
@@ -5476,24 +5474,8 @@ function renderParametres(){
     </div>
 
     <div class="panel" style="margin-bottom:18px">
-      <div class="panel-head"><div><h3>Code PIN de connexion</h3><span class="hint">Le PIN est enregistré uniquement sur cet appareil (haché) et fonctionne sans internet</span></div></div>
-      <div class="form-grid">
-        <div class="field"><label>PIN actuel</label><input type="password" id="pinCur" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></div>
-        <div class="field"><label>Nouveau PIN</label><input type="password" id="pinN1" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></div>
-        <div class="field"><label>Confirmer le nouveau PIN</label><input type="password" id="pinN2" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></div>
-      </div>
-      <div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="changerMonPin()">Modifier mon PIN</button></div>
-      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:12.5px;color:var(--text-dim)">
-        Empreinte / visage sur cet appareil : <b>${bioActif(SESSION.profile) ? "activé" : "désactivé"}</b>
-        <button class="btn btn-sm" style="margin-left:8px" onclick="${bioActif(SESSION.profile) ? "bioDesactiver('" + SESSION.profile + "')" : "bioActiver('" + SESSION.profile + "')"}">${bioActif(SESSION.profile) ? "Désactiver" : "Activer"}</button>
-      </div>
-      ${SESSION.profile === "direction" ? `
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-          <div style="font-size:12.5px;color:var(--text-dim);margin-bottom:10px">Réinitialiser le PIN d'un autre profil (retour à 2027) :</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            ${Object.keys(PROFILES).filter(p=>p!=="direction").map(p=>`<button class="btn btn-sm" onclick="reinitialiserPinProfil('${p}')">${PROFILES[p].label}</button>`).join("")}
-          </div>
-        </div>` : ""}
+      <div class="panel-head"><div><h3>Connexion</h3><span class="hint">Profil + mot de passe du compte Firebase</span></div></div>
+      <p style="font-size:12.5px;color:var(--text-dim);line-height:1.6">Le mot de passe de chaque profil se change dans la console Firebase (Authentication &gt; Users). Version de l'application : <b>${APP_VERSION}</b>.</p>
     </div>
 
     <div class="panel" style="margin-bottom:18px">
@@ -5594,7 +5576,35 @@ function adminSetVue(v){ adminVue = v; renderAdministration(); }
 function renderAdministration(){
   const el = document.getElementById("pageContent");
   if(SESSION.profile !== "direction"){
-    el.innerHTML = `<div class="panel"><p style="color:var(--red)">Accès réservé à la Direction.</p></div>`;
+    const optionsRole = Object.keys(PROFILES).map(k=>`<option value="${k}">${esc(PROFILES[k].label)}</option>`).join("");
+  const lignesUsers = (DB.utilisateurs||[]).slice().sort((a,b)=>utilisateurNomComplet(a).localeCompare(utilisateurNomComplet(b),"fr")).map(u=>{
+    const actif = u.actif !== false;
+    const roles = Object.keys(PROFILES).map(k=>`<option value="${k}" ${u.role===k?"selected":""}>${esc(PROFILES[k].label)}</option>`).join("");
+    return `<tr style="${actif?"":"opacity:.55"}">
+      <td style="font-weight:600">${esc(u.prenoms||"")} ${esc((u.nom||"").toUpperCase())}</td>
+      <td><select class="filter" style="font-size:12px;padding:6px 8px" onchange="adminChangerRoleUtilisateur('${u.id}',this.value)">${roles}</select></td>
+      <td><span class="badge ${actif?"green":"grey"}">${actif?"Actif":"Désactivé"}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" onclick="adminPinUtilisateur('${u.id}')">Changer PIN</button>
+        <button class="btn btn-sm" onclick="adminBasculerUtilisateur('${u.id}')">${actif?"Désactiver":"Activer"}</button>
+        <button class="btn btn-sm btn-danger" onclick="adminSupprimerUtilisateur('${u.id}')">Supprimer</button></td></tr>`;
+  }).join("") || `<tr><td colspan="4" style="text-align:center;color:var(--text-mute)">Aucun utilisateur. Tant qu'il n'y en a aucun, la connexion se fait par profil.</td></tr>`;
+  const vueUtilisateurs = `
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-head"><div><h3>Nouvel utilisateur</h3>
+        <span class="hint">La personne se connecte avec son nom d'utilisateur (prénoms puis nom, ex. « Mamadou Lamine CAMARA ») et son PIN à 4 chiffres. Le rôle détermine ses droits.</span></div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px">
+        <div class="field"><label>Nom</label><input type="text" id="nuNom" autocomplete="off" placeholder="ex. CAMARA"></div>
+        <div class="field"><label>Prénoms</label><input type="text" id="nuPrenoms" autocomplete="off" placeholder="ex. Mamadou Lamine"></div>
+        <div class="field"><label>Rôle</label><select id="nuRole">${optionsRole}</select></div>
+        <div class="field"><label>PIN (4 chiffres)</label><input type="password" id="nuPin" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></div>
+      </div>
+      <div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="adminAjouterUtilisateur()">Créer l'utilisateur</button></div>
+    </div>
+    <div class="panel"><div class="table-wrap"><table>
+      <thead><tr><th>Nom et prénoms</th><th>Rôle</th><th>Statut</th><th>Actions</th></tr></thead><tbody>${lignesUsers}</tbody></table></div></div>`;
+
+  el.innerHTML = `<div class="panel"><p style="color:var(--red)">Accès réservé à la Direction.</p></div>`;
     return;
   }
   const profils = Object.keys(PROFILES).filter(p=>p!=="direction");
@@ -5654,7 +5664,6 @@ function renderAdministration(){
           ${optionsCopie(p)}
         </select>
         <button class="btn btn-sm ${actif?"btn-danger":""}" onclick="adminBasculerActif('${p}')">${actif?"Désactiver":"Activer"}</button>
-        <button class="btn btn-sm" onclick="reinitialiserPinProfil('${p}')">PIN → 2027</button>
         <button class="btn btn-sm" onclick="adminVoirDroits('${p}')">Voir droits</button>
       </div>
     </div>`;
@@ -5711,32 +5720,6 @@ function renderAdministration(){
       <div style="font-size:11px;color:var(--text-mute);text-align:right;white-space:nowrap">${esc(qui)}<br>${esc(traceDateHeure(j.ts))}</div></div>`;
   }).join("") : `<p style="font-size:12.5px;color:var(--text-mute)">Aucun changement de droits ou de réglage enregistré pour le moment.</p>`;
 
-  const optionsRole = Object.keys(PROFILES).map(k=>`<option value="${k}">${esc(PROFILES[k].label)}</option>`).join("");
-  const lignesUsers = DB.utilisateurs.slice().sort((a,b)=>utilisateurNomComplet(a).localeCompare(utilisateurNomComplet(b),"fr")).map(u=>{
-    const actif = u.actif !== false;
-    const roles = Object.keys(PROFILES).map(k=>`<option value="${k}" ${u.role===k?"selected":""}>${esc(PROFILES[k].label)}</option>`).join("");
-    return `<tr style="${actif?"":"opacity:.55"}">
-      <td style="font-weight:600">${esc(u.prenoms||"")} ${esc((u.nom||"").toUpperCase())}</td>
-      <td><select class="filter" style="font-size:12px;padding:6px 8px" onchange="adminChangerRoleUtilisateur('${u.id}',this.value)">${roles}</select></td>
-      <td><span class="badge ${actif?"green":"grey"}">${actif?"Actif":"Désactivé"}</span></td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-sm" onclick="adminBasculerUtilisateur('${u.id}')">${actif?"Désactiver":"Activer"}</button>
-        <button class="btn btn-sm btn-danger" onclick="adminSupprimerUtilisateur('${u.id}')">Supprimer</button></td></tr>`;
-  }).join("") || `<tr><td colspan="4" style="text-align:center;color:var(--text-mute)">Aucun utilisateur nommé. Sans utilisateur, la connexion se fait directement avec le profil.</td></tr>`;
-  const vueUtilisateurs = `
-    <div class="panel" style="margin-bottom:16px">
-      <div class="panel-head"><div><h3>Nouvel utilisateur</h3>
-        <span class="hint">Le nom apparaît dans le journal de traçabilité. À la connexion d'un profil qui a des utilisateurs, la personne choisit son nom.</span></div></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px">
-        <div class="field"><label>Nom</label><input type="text" id="nuNom" autocomplete="off" placeholder="ex. CAMARA"></div>
-        <div class="field"><label>Prénoms</label><input type="text" id="nuPrenoms" autocomplete="off" placeholder="ex. Mamadou Lamine"></div>
-        <div class="field"><label>Rôle</label><select id="nuRole">${optionsRole}</select></div>
-      </div>
-      <div style="margin-top:12px"><button class="btn btn-primary btn-sm" onclick="adminAjouterUtilisateur()">Créer l'utilisateur</button></div>
-    </div>
-    <div class="panel"><div class="table-wrap"><table>
-      <thead><tr><th>Nom et prénoms</th><th>Rôle</th><th>Statut</th><th>Actions</th></tr></thead><tbody>${lignesUsers}</tbody></table></div></div>`;
-
   el.innerHTML = `
     <style>
       .adm-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
@@ -5766,7 +5749,6 @@ function renderAdministration(){
     <div class="adm-tabs">
       <button class="adm-tab${adminVue==="profils"?" on":""}" onclick="adminSetVue('profils')">Profils & droits</button>
       <button class="adm-tab${adminVue==="matrice"?" on":""}" onclick="adminSetVue('matrice')">Vue matrice</button>
-      <button class="adm-tab${adminVue==="utilisateurs"?" on":""}" onclick="adminSetVue('utilisateurs')">Utilisateurs (${DB.utilisateurs.length})</button>
     </div>
     <p style="font-size:12px;color:var(--text-dim);margin:-4px 0 14px;line-height:1.6">
       Touchez un module pour l'accorder ou le retirer. Les changements s'appliquent à tous les postes en temps réel. Les modules en orange donnent accès à des données sensibles.</p>
@@ -5790,7 +5772,7 @@ function renderAdministration(){
     <div class="panel">
       <div class="panel-head"><h3>Bonnes pratiques</h3></div>
       <ul style="font-size:12.5px;color:var(--text-dim);line-height:1.8;padding-left:18px">
-        <li>Les PIN sont propres à chaque appareil : « PIN → 2027 » réinitialise le PIN <b>sur cet appareil</b> uniquement.</li>
+        <li>La connexion se fait avec le mot de passe Firebase du profil : changez-le dans Firebase Authentication si un appareil est perdu ou si une personne quitte son poste.</li>
         <li>Republiez <code>firestore.rules</code> après chaque changement de droits pour qu'ils soient aussi appliqués <b>côté serveur</b>.</li>
         <li>Les mots de passe des anciennes versions (v10 à v13) étaient visibles dans le code : changez-les dans Firebase Authentication.</li>
         <li>Désactivez un profil dès qu'une personne quitte son poste : sa session ouverte est fermée automatiquement.</li>
@@ -5865,83 +5847,6 @@ async function adminBasculerActif(profil){
   renderAdministration();
 }
 
-/* ---------- Utilisateurs nommés (créés par la Direction, rattachés à un profil/rôle) ---------- */
-function utilisateurNomComplet(u){ return `${(u.prenoms||"").trim()} ${(u.nom||"").trim().toUpperCase()}`.trim(); }
-function utilisateurInitiales(nomComplet){
-  const m = String(nomComplet||"").trim().split(/\s+/).filter(Boolean);
-  return ((m[0]||"?")[0] + (m.length>1 ? m[m.length-1][0] : "")).toUpperCase();
-}
-function utilisateursActifs(profile){
-  return (DB && Array.isArray(DB.utilisateurs) ? DB.utilisateurs : []).filter(u=>u.role===profile && u.actif!==false);
-}
-/* Après le PIN et l'authentification du profil : l'utilisateur indique qui il est. */
-function choisirUtilisateur(profile, liste){
-  return new Promise(resolve=>{
-    let dernier = ""; try{ dernier = localStorage.getItem("gsps_dernier_user_" + profile) || ""; }catch(e){}
-    const ov = document.createElement("div");
-    ov.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(15,20,40,.72);display:flex;align-items:center;justify-content:center;padding:16px";
-    const tri = liste.slice().sort((a,b)=> (a.id===dernier?-1:0) - (b.id===dernier?-1:0) || utilisateurNomComplet(a).localeCompare(utilisateurNomComplet(b),"fr"));
-    ov.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;max-height:85vh;overflow:auto;padding:20px">
-      <div style="font-weight:700;font-size:16px;margin-bottom:4px">Qui êtes-vous ?</div>
-      <div style="font-size:12.5px;color:#666;margin-bottom:14px">Profil : ${esc(PROFILES[profile].label)}. Touchez votre nom.</div>
-      <div id="userPickList" style="display:flex;flex-direction:column;gap:8px"></div>
-      <button type="button" id="userPickCancel" class="btn btn-sm" style="margin-top:14px;width:100%">Annuler</button></div>`;
-    document.body.appendChild(ov);
-    const box = ov.querySelector("#userPickList");
-    tri.forEach(u=>{
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "btn"; b.style.cssText = "text-align:left;padding:12px 14px;font-size:14px;width:100%";
-      b.textContent = utilisateurNomComplet(u) + (u.id===dernier ? "  ✓ (dernière connexion)" : "");
-      b.onclick = ()=>{ ov.remove(); resolve(u); };
-      box.appendChild(b);
-    });
-    ov.querySelector("#userPickCancel").onclick = ()=>{ ov.remove(); resolve(null); };
-  });
-}
-
-function adminAjouterUtilisateur(){
-  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
-  const nom = (document.getElementById("nuNom").value||"").trim();
-  const prenoms = (document.getElementById("nuPrenoms").value||"").trim();
-  const role = document.getElementById("nuRole").value;
-  if(!nom || !prenoms){ toast("Le nom et les prénoms sont obligatoires.", true); return; }
-  if(!PROFILES[role]){ toast("Choisissez un rôle.", true); return; }
-  const cle = s=>s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ");
-  if(DB.utilisateurs.some(u=>cle(u.nom)===cle(nom) && cle(u.prenoms)===cle(prenoms) && u.role===role)){
-    toast("Cet utilisateur existe déjà pour ce rôle.", true); return;
-  }
-  DB.utilisateurs.push({ id: uid("USR"), nom, prenoms, role, actif:true, creeLe: Date.now() });
-  saveDB();
-  toast("Utilisateur « " + prenoms + " " + nom.toUpperCase() + " » créé (" + PROFILES[role].label + ").");
-  renderAdministration();
-}
-async function adminBasculerUtilisateur(id){
-  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
-  const u = DB.utilisateurs.find(x=>x.id===id); if(!u) return;
-  const nouveau = u.actif === false;
-  if(!nouveau && !await confirmer("Désactiver « " + utilisateurNomComplet(u) + " » ? Il ne pourra plus être choisi à la connexion.")) return;
-  u.actif = nouveau;
-  saveDB();
-  toast("Utilisateur " + (nouveau ? "activé." : "désactivé."));
-  renderAdministration();
-}
-async function adminSupprimerUtilisateur(id){
-  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
-  const u = DB.utilisateurs.find(x=>x.id===id); if(!u) return;
-  if(!await confirmer("Supprimer définitivement « " + utilisateurNomComplet(u) + " » ? L'historique du journal est conservé.")) return;
-  DB.utilisateurs = DB.utilisateurs.filter(x=>x.id!==id);
-  saveDB();
-  toast("Utilisateur supprimé.");
-  renderAdministration();
-}
-function adminChangerRoleUtilisateur(id, role){
-  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
-  const u = DB.utilisateurs.find(x=>x.id===id); if(!u || !PROFILES[role]) return;
-  u.role = role;
-  saveDB();
-  toast("Rôle de « " + utilisateurNomComplet(u) + " » : " + PROFILES[role].label + ".");
-  renderAdministration();
-}
 
 function adminVoirDroits(profil){
   const d = DB.droits[profil];
@@ -6887,7 +6792,7 @@ function demarrerSyncTempsReel(){
       if(SESSION){ buildNav(); if(!PROFILES[SESSION.profile].nav.includes(currentPage)) currentPage = PROFILES[SESSION.profile].nav[0]; }
       /* v25 : pas de re-rendu complet pendant qu'un champ de saisie a le focus (évite de perdre un formulaire en cours) */
       const ae = document.activeElement;
-      const enSaisie = !!(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.id !== "loginProfile");
+      const enSaisie = !!(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.id !== "loginProfile" && ae.id !== "loginNom");
       if(SESSION && !enSaisie) rerenderCurrentPage();
     }catch(err){
       console.error("Application des données distantes échouée :", err);
@@ -7022,6 +6927,8 @@ function normaliserDB(db){
   if(!db.parametres || typeof db.parametres !== "object") db.parametres = {};
   if(typeof db.parametres.cachetSignature === "undefined") db.parametres.cachetSignature = null;
   if(!Array.isArray(db.utilisateurs)) db.utilisateurs = [];
+  // v34 : les PIN n'existent plus ; on retire les hachés (pinHash/pinSalt) restés dans la base.
+  db.utilisateurs.forEach(u=>{ if(u){ delete u.pinHash; delete u.pinSalt; } });
   // Migration douce : droits par profil et activation (gérés par la Direction, voir Administration)
   if(!db.droits || typeof db.droits !== "object") db.droits = {};
   Object.keys(DROITS_DEFAUT).forEach(k=>{
@@ -7126,6 +7033,7 @@ function plafonnerJournal(){
 }
 function saveDB(db){
   DB = db || DB;
+  usersCacheFromDB();
   if(!fbApplyingRemote) traceEnregistrerChangements(); // journalise ce qui a changé depuis la dernière sauvegarde
   // Les données scolaires ne sont plus recopiées dans localStorage : Firestore + son cache persistant IndexedDB sont la source de vérité.
   if(fbApplyingRemote) return Promise.resolve(true); // on vient de recevoir cette donnée de Firestore, pas la peine de la réécrire
@@ -7161,6 +7069,88 @@ function saveDB(db){
     toast("Erreur d'enregistrement : " + ((err && err.code) || err), true);
     return false;
   });
+}
+
+/* ---------- Utilisateurs nommés : nom d'utilisateur + PIN, rôle = profil ---------- */
+const USERS_CACHE_KEY = "gsps_users_cache_v1";   // copie locale (nom, rôle, PIN haché) pour la connexion avant Firebase
+function utilisateurNomComplet(u){ return `${(u.prenoms||"").trim()} ${(u.nom||"").trim().toUpperCase()}`.trim(); }
+function utilisateurInitiales(nomComplet){
+  const m = String(nomComplet||"").trim().split(/\s+/).filter(Boolean);
+  return ((m[0]||"?")[0] + (m.length>1 ? m[m.length-1][0] : "")).toUpperCase();
+}
+function utilisateurNormalise(s){
+  return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+}
+function usersCacheLoad(){ try{ return JSON.parse(localStorage.getItem(USERS_CACHE_KEY)) || []; }catch(e){ return []; } }
+function usersCacheFromDB(){
+  /* v34 : plus aucun haché de PIN n'est copié dans le localStorage ; on purge les anciennes copies. */
+  try{ localStorage.removeItem(USERS_CACHE_KEY); localStorage.removeItem(PIN_KEY); localStorage.removeItem(PIN_LOCK_KEY); localStorage.removeItem(BIO_KEY); }catch(e){}
+}
+function trouverUtilisateurLogin(saisie){
+  const k = utilisateurNormalise(saisie); if(!k) return null;
+  return usersCacheLoad().find(u=> u.actif && (utilisateurNormalise(u.prenoms+" "+u.nom)===k || utilisateurNormalise(u.nom+" "+u.prenoms)===k)) || null;
+}
+const PIN_TROP_SIMPLE = p => /^(\d)\1{3}$/.test(p) || p==="1234" || p==="4321" || p===PIN_DEFAULT;
+
+async function adminAjouterUtilisateur(){
+  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
+  const nom = (document.getElementById("nuNom").value||"").trim();
+  const prenoms = (document.getElementById("nuPrenoms").value||"").trim();
+  const role = document.getElementById("nuRole").value;
+  const pin = (document.getElementById("nuPin").value||"").trim();
+  if(!nom || !prenoms){ toast("Le nom et les prénoms sont obligatoires.", true); return; }
+  if(!PROFILES[role]){ toast("Choisissez un rôle.", true); return; }
+  if(!/^\d{4}$/.test(pin)){ toast("Le PIN doit comporter exactement 4 chiffres.", true); return; }
+  if(PIN_TROP_SIMPLE(pin)){ toast("PIN trop simple, choisissez-en un autre.", true); return; }
+  const cle = s=>utilisateurNormalise(s);
+  if(DB.utilisateurs.some(u=>cle(u.nom)===cle(nom) && cle(u.prenoms)===cle(prenoms))){
+    toast("Un utilisateur porte déjà ce nom.", true); return;
+  }
+  const salt = pinRandomSalt();
+  DB.utilisateurs.push({ id: uid("USR"), nom, prenoms, role, actif:true, creeLe: Date.now(), pinSalt: salt, pinHash: await pinHash(pin, salt) });
+  saveDB();
+  toast("Utilisateur « " + utilisateurNomComplet({nom, prenoms}) + " » créé (" + PROFILES[role].label + ").");
+  renderAdministration();
+}
+async function adminPinUtilisateur(id){
+  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
+  const u = DB.utilisateurs.find(x=>x.id===id); if(!u) return;
+  const saisi = await saisir("Nouveau PIN à 4 chiffres pour « " + utilisateurNomComplet(u) + " »", "", { type:"password" });
+  if(saisi === null) return;
+  const pin = String(saisi).trim();
+  if(!/^\d{4}$/.test(pin)){ toast("Le PIN doit comporter exactement 4 chiffres.", true); return; }
+  if(PIN_TROP_SIMPLE(pin)){ toast("PIN trop simple, choisissez-en un autre.", true); return; }
+  const salt = pinRandomSalt();
+  u.pinSalt = salt; u.pinHash = await pinHash(pin, salt);
+  saveDB();
+  toast("PIN de « " + utilisateurNomComplet(u) + " » modifié.");
+}
+async function adminBasculerUtilisateur(id){
+  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
+  const u = DB.utilisateurs.find(x=>x.id===id); if(!u) return;
+  const nouveau = u.actif === false;
+  if(!nouveau && !await confirmer("Désactiver « " + utilisateurNomComplet(u) + " » ? Il ne pourra plus se connecter.")) return;
+  u.actif = nouveau;
+  saveDB();
+  toast("Utilisateur " + (nouveau ? "activé." : "désactivé."));
+  renderAdministration();
+}
+async function adminSupprimerUtilisateur(id){
+  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
+  const u = DB.utilisateurs.find(x=>x.id===id); if(!u) return;
+  if(!await confirmer("Supprimer définitivement « " + utilisateurNomComplet(u) + " » ? L'historique du journal est conservé.")) return;
+  DB.utilisateurs = DB.utilisateurs.filter(x=>x.id!==id);
+  saveDB();
+  toast("Utilisateur supprimé.");
+  renderAdministration();
+}
+function adminChangerRoleUtilisateur(id, role){
+  if(SESSION.profile !== "direction"){ toast("Réservé à la Direction.", true); return; }
+  const u = DB.utilisateurs.find(x=>x.id===id); if(!u || !PROFILES[role]) return;
+  u.role = role;
+  saveDB();
+  toast("Rôle de « " + utilisateurNomComplet(u) + " » : " + PROFILES[role].label + ".");
+  renderAdministration();
 }
 
 /* ---------- Auth : PIN local (4 chiffres, haché, 100 % hors-ligne) ---------- */
@@ -7221,16 +7211,29 @@ function pinError(msg){
   const err = document.getElementById("loginError");
   err.textContent = msg; err.style.display = "block";
   const dots = document.getElementById("pinDots");
-  dots.classList.remove("shake"); void dots.offsetWidth; dots.classList.add("shake");
+  if(dots){ dots.classList.remove("shake"); void dots.offsetWidth; dots.classList.add("shake"); }
 }
 function pinClearError(){ document.getElementById("loginError").style.display = "none"; }
 function pinPadDisabled(dis){ document.querySelectorAll("#pinPad button").forEach(b=> b.disabled = dis); }
 
+/* Cible de la connexion : utilisateur nommé (nom + PIN), ou profil seul tant qu'aucun utilisateur n'existe sur cet appareil */
+function loginModeLegacy(){ return true; }   /* v34 : connexion = profil + mot de passe Firebase, toujours */
+function loginCible(){
+  if(loginModeLegacy()){
+    const p = (document.getElementById("loginProfile")||{}).value || "";
+    return { profile: p, user: null, key: p };
+  }
+  const u = trouverUtilisateurLogin((document.getElementById("loginNom")||{}).value);
+  return u ? { profile: u.role, user: u, key: "u:" + u.id } : { profile: "", user: null, key: "" };
+}
+function loginNomSaisi(){ return ((document.getElementById("loginNom")||{}).value || "").trim(); }
+
 function pinReset(){
   pinBuf = ""; pinNew = ""; pinMode = "enter";
   pinRender(); pinClearError();
-  const p = document.getElementById("loginProfile").value;
-  pinSetInfo(p ? "Saisissez votre code PIN à 4 chiffres." : "Choisissez votre profil puis saisissez votre code PIN.");
+  const c = loginCible();
+  const msg = "Choisissez votre profil et saisissez son mot de passe.";
+  pinSetInfo(msg);
   pinCheckLock();
   if(typeof bioMajBouton === "function") bioMajBouton();
 }
@@ -7238,9 +7241,9 @@ function pinReset(){
 /* Verrouillage temporaire après trop d'essais */
 function pinCheckLock(){
   clearTimeout(pinLockTimer);
-  const p = document.getElementById("loginProfile").value;
-  if(!p){ pinPadDisabled(false); return false; }
-  const lock = pinLockLoad()[p];
+  const c = loginCible();
+  if(!c.key){ pinPadDisabled(false); return false; }
+  const lock = pinLockLoad()[c.key];
   const remain = lock && lock.until ? lock.until - Date.now() : 0;
   if(remain > 0){
     pinPadDisabled(true);
@@ -7254,9 +7257,12 @@ function pinCheckLock(){
 }
 
 function pinKey(k){
-  const profile = document.getElementById("loginProfile").value;
+  const c = loginCible();
   const err = document.getElementById("loginError");
-  if(!profile){ err.textContent = "Veuillez d'abord choisir un profil."; err.style.display = "block"; return; }
+  if(!c.key){
+    err.textContent = loginModeLegacy() ? "Veuillez d'abord choisir un profil." : "Saisissez un nom d'utilisateur connu.";
+    err.style.display = "block"; return;
+  }
   if(pinCheckLock()) return;
   if(k === "clear"){ pinBuf = ""; pinRender(); return; }
   if(k === "back"){ pinBuf = pinBuf.slice(0,-1); pinRender(); return; }
@@ -7267,52 +7273,53 @@ function pinKey(k){
 }
 
 async function pinSubmit(){
-  const profile = document.getElementById("loginProfile").value;
+  const c = loginCible();
+  const profile = c.profile, key = c.key;
   const entered = pinBuf;
   pinBuf = ""; pinRender();
 
-  /* --- Étape « nouveau PIN » (après connexion avec le PIN initial) --- */
+  /* --- Étape « nouveau PIN » (profil seul, après connexion avec le PIN initial) --- */
   if(pinMode === "new"){
     if(entered === PIN_DEFAULT){ pinError("Choisissez un PIN différent de 2027."); return; }
-    if(/^(\d)\1{3}$/.test(entered) || entered === "1234" || entered === "4321"){ pinError("PIN trop simple. Choisissez-en un autre."); return; }
+    if(PIN_TROP_SIMPLE(entered)){ pinError("PIN trop simple. Choisissez-en un autre."); return; }
     pinNew = entered; pinMode = "confirm";
     pinSetInfo("Confirmez votre nouveau PIN."); return;
   }
   if(pinMode === "confirm"){
     if(entered !== pinNew){ pinMode = "new"; pinNew = ""; pinError("Les deux PIN ne correspondent pas. Recommencez."); pinSetInfo("Choisissez un nouveau PIN à 4 chiffres."); return; }
     await pinSet(profile, entered);
-    pinResetFails(profile);
+    pinResetFails(key);
     toast("PIN enregistré.");
-    await pinLogin(profile); return;
+    await pinLogin(profile, null); return;
   }
 
-  /* --- Vérification du PIN saisi --- */
-  const rec = await pinEnsure(profile);
+  /* --- Vérification du PIN saisi : PIN de l'utilisateur, ou PIN du profil (premier accès) --- */
+  const rec = c.user ? { salt: c.user.pinSalt, hash: c.user.pinHash, initial: false } : await pinEnsure(profile);
   const ok = (await pinHash(entered, rec.salt)) === rec.hash;
   if(!ok){
     const locks = pinLockLoad();
-    const l = locks[profile] || { fails:0, until:0 };
+    const l = locks[key] || { fails:0, until:0 };
     l.fails = (l.fails||0) + 1;
     if(l.fails >= PIN_MAX_FAILS){
-      /* v24 : blocage progressif 30 s → 2 min → 10 min → 30 min */
+      /* blocage progressif 30 s → 2 min → 10 min → 30 min */
       l.rounds = (l.rounds || 0) + 1;
       l.until = Date.now() + [PIN_LOCK_MS, 120000, 600000, 1800000][Math.min(l.rounds - 1, 3)];
       l.fails = 0;
     }
-    locks[profile] = l; pinLockSave(locks);
+    locks[key] = l; pinLockSave(locks);
     if(l.until > Date.now()){ pinCheckLock(); return; }
     pinError("Code PIN incorrect (" + (PIN_MAX_FAILS - l.fails) + " essai(s) restant(s)).");
     return;
   }
-  pinResetFails(profile);
+  pinResetFails(key);
   if(rec.initial){
     pinMode = "new"; pinNew = "";
     pinSetInfo("Première connexion : choisissez un nouveau PIN à 4 chiffres.");
     return;
   }
-  await pinLogin(profile);
+  await pinLogin(profile, c.user);
 }
-function pinResetFails(profile){ const l = pinLockLoad(); delete l[profile]; pinLockSave(l); }
+function pinResetFails(key){ const l = pinLockLoad(); delete l[key]; pinLockSave(l); }
 
 /* Dialogues asynchrones de l'application (remplacent confirm()/prompt() natifs, bloquants). */
 function __dialogue(titre, message, opts){
@@ -7377,7 +7384,40 @@ function demanderMotDePasse(titre, lignes, erreur, email){
   });
 }
 
-async function pinLogin(profile){
+/* Connexion : profil + mot de passe du compte Firebase de ce profil (plus de PIN ni de nom d'utilisateur). */
+async function loginAvecMotDePasse(){
+  pinClearError();
+  const profile = (document.getElementById("loginProfile")||{}).value || "";
+  const champ = document.getElementById("loginMdp");
+  const password = champ ? champ.value : "";
+  if(!profile){ pinError("Choisissez votre profil."); return; }
+  if(!password){ pinError("Saisissez le mot de passe de ce profil."); return; }
+  if(!window.__fb){ pinError("Composants Firebase non chargés. Ouvrez l'application une fois avec internet."); return; }
+  afficherEcranChargement();
+  const ok = await window.__fb.signInAsRole(profile, password);
+  if(champ) champ.value = "";
+  if(!ok){
+    masquerEcranChargement();
+    pinError(window.__fb.authErrorMessage());
+    return;
+  }
+  DB = await loadDB();
+  appliquerDroitsDepuisDB();
+  usersCacheFromDB();
+  traceSnapshot();
+  if(!profilActif(profile)){ masquerEcranChargement(); pinError("Ce profil est désactivé par la Direction."); return; }
+  masquerEcranChargement();
+  majIndicateurConnexion();
+  SESSION = { profile, name: PROFILES[profile].label, userId: null, at: Date.now() };
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(SESSION));
+  try{ localStorage.setItem("gsps_dernier_profil", profile); }catch(e){}
+  bootApp();
+  armerVerrou();
+  setTimeout(resoudreDoublonsNumeros, 2000);
+  setTimeout(persisterMigrationDroits, 2500);
+}
+
+async function pinLogin(profile, user){
   pinClearError();
   if(!window.__fb){
     pinError("Composants Firebase non chargés. Ouvrez l'application une fois avec internet (le temps du chargement), puis elle fonctionnera hors-ligne.");
@@ -7412,7 +7452,12 @@ async function pinLogin(profile){
   }
   DB = await loadDB();
   appliquerDroitsDepuisDB();
+  usersCacheFromDB();
   traceSnapshot();
+  if(user){
+    const frais = (DB.utilisateurs||[]).find(x=>x.id===user.id && x.actif!==false);
+    if(!frais){ masquerEcranChargement(); pinError("Ce compte est désactivé ou supprimé par la Direction."); return; }
+  }
   if(!profilActif(profile)){
     masquerEcranChargement();
     pinError("Ce profil est désactivé par la Direction.");
@@ -7420,16 +7465,6 @@ async function pinLogin(profile){
   }
   masquerEcranChargement();
   majIndicateurConnexion();
-  let user = null;
-  const candidats = utilisateursActifs(profile);
-  if(candidats.length === 1){
-    user = candidats[0];   // v24 : un seul utilisateur actif sur ce profil → pas de choix à faire
-    try{ localStorage.setItem("gsps_dernier_user_" + profile, user.id); }catch(e){}
-  }else if(candidats.length){
-    user = await choisirUtilisateur(profile, candidats);
-    if(!user){ pinError("Connexion annulée : choisissez votre nom pour continuer."); return; }
-    try{ localStorage.setItem("gsps_dernier_user_" + profile, user.id); }catch(e){}
-  }
   SESSION = { profile, name: user ? utilisateurNomComplet(user) : PROFILES[profile].label, userId: user ? user.id : null, at: Date.now() };
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(SESSION));
   try{ localStorage.setItem("gsps_dernier_profil", profile); }catch(e){}
@@ -7437,7 +7472,7 @@ async function pinLogin(profile){
   armerVerrou();
   setTimeout(resoudreDoublonsNumeros, 2000);
   setTimeout(persisterMigrationDroits, 2500);
-  setTimeout(()=>{ bioProposer(profile); }, 2500);
+  if(!user) setTimeout(()=>{ bioProposer(profile); }, 2500);
 }
 
 /* PIN oublié : demande d'abord de confirmer, puis réinitialise à 2027 sur cet appareil.
@@ -7452,7 +7487,9 @@ async function verifierMotDePasseFirebase(profile, password){
 /* PIN oublié : la réinitialisation exige désormais une authentification Firebase réelle.
    Aucun code de récupération universel n'est présent dans le client. */
 async function pinForgot(){
-  const profile = document.getElementById("loginProfile").value;
+  const c = loginCible();
+  if(c.user){ toast("Demandez à la Direction de réinitialiser votre PIN.", true); return; }
+  const profile = c.profile;
   if(!profile){ toast("Choisissez d'abord le profil concerné.", true); return; }
   const email = window.__fb.emailDuProfil(profile);
   const password = await demanderMotDePasse("Réinitialisation sécurisée du PIN", ["Compte Firebase : " + email, "Saisissez le mot de passe Firebase de ce compte pour confirmer votre identité."], "", email);
@@ -7467,6 +7504,7 @@ async function pinForgot(){
 
 /* Changement de PIN depuis l'application (page Paramètres) */
 async function changerMonPin(){
+  if(SESSION && SESSION.userId){ toast("Le PIN de ce compte est géré par la Direction (Administration > Utilisateurs).", true); return; }
   const cur = document.getElementById("pinCur").value.trim();
   const n1 = document.getElementById("pinN1").value.trim();
   const n2 = document.getElementById("pinN2").value.trim();
@@ -7512,8 +7550,8 @@ function bioB64(buf){ let s = ""; new Uint8Array(buf).forEach(b=> s += String.fr
 function bioDeB64(t){ const s = atob(t); const a = new Uint8Array(s.length); for(let i=0;i<s.length;i++) a[i] = s.charCodeAt(i); return a; }
 async function bioMajBouton(){
   const btn = document.getElementById("bioBtn"); if(!btn) return;
-  const p = document.getElementById("loginProfile").value;
-  btn.style.display = (p && bioActif(p) && await bioPlateformeOk()) ? "" : "none";
+  const c = loginCible();
+  btn.style.display = (c.profile && !c.user && bioActif(c.profile) && await bioPlateformeOk()) ? "" : "none";
 }
 async function bioActiver(profile){
   try{
@@ -7540,7 +7578,8 @@ function bioDesactiver(profile){
   if(typeof renderParametres === "function" && currentPage === "parametres") renderParametres();
 }
 async function bioConnexion(){
-  const profile = document.getElementById("loginProfile").value;
+  const c = loginCible();
+  const profile = c.user ? "" : c.profile;   // l'empreinte est propre au profil : pas pour les utilisateurs nommés
   if(!profile || !bioActif(profile)) return;
   if(pinCheckLock()) return;
   try{
@@ -7572,9 +7611,16 @@ document.addEventListener("DOMContentLoaded", ()=>{
   try{
     const cb = document.getElementById("appareilPartage");
     if(cb) cb.checked = localStorage.getItem("gsps_appareil_partage") === "1";
-    const sel = document.getElementById("loginProfile");
+    const legacy = loginModeLegacy();
+    const sel = document.getElementById("loginProfile"), nom = document.getElementById("loginNom");
+    if(sel) sel.style.display = legacy ? "" : "none";
+    if(nom) nom.style.display = legacy ? "none" : "";
+    const hint = document.getElementById("pinFirstHint");
+    if(hint && !legacy) hint.textContent = "Votre PIN à 4 chiffres vous est attribué par la Direction.";
     const dernier = localStorage.getItem("gsps_dernier_profil");
-    if(sel && dernier && PROFILES[dernier] && !sessionStorage.getItem(SESSION_KEY)){ sel.value = dernier; pinReset(); }
+    if(legacy && sel && dernier && PROFILES[dernier] && !sessionStorage.getItem(SESSION_KEY)){ sel.value = dernier; }
+    const vEl = document.getElementById("appVersionLogin"); if(vEl) vEl.textContent = APP_VERSION;
+    pinReset();
     if(sessionStorage.getItem(SESSION_KEY)) setTimeout(armerVerrou, 3000);   // session rechargée : on réarme le verrou d'inactivité
   }catch(e){}
 });
@@ -7698,15 +7744,6 @@ document.addEventListener("DOMContentLoaded", async ()=>{
       toast(window.__fb.authErrorMessage(), true);
     }
   }
-  document.getElementById("pinPad").addEventListener("click", e=>{
-    const b = e.target.closest("button[data-k]"); if(b) pinKey(b.dataset.k);
-  });
-  document.addEventListener("keydown", e=>{
-    if(document.getElementById("app").style.display === "block") return;
-    if(/^\d$/.test(e.key)) pinKey(e.key);
-    else if(e.key === "Backspace") pinKey("back");
-    else if(e.key === "Escape") pinKey("clear");
-  });
 });
 
 function afficherEcranChargement(){
